@@ -962,6 +962,50 @@
                 initTimelineSlider();
                 renderDetailAll();
             }
+        }async function saveProjectInfo() {
+            const name = document.getElementById('inputProjectName').value;
+            const clientName = document.getElementById('inputClientName').value;
+            const startDate = document.getElementById('inputStartDate').value;
+            const endDate = document.getElementById('inputEndDate').value;
+            if (!name) return alert("현장명을 입력해주세요.");
+
+            showLoading(true);
+            try {
+                let targetId = currentProjectId;
+                if (isCreatingNewProject) {
+                    targetId = 'PRJ-' + String(Date.now()).slice(-4);
+                }
+
+                const payload = {
+                    action: 'saveProject',
+                    project_id: targetId,
+                    name: name,
+                    client_name: clientName,
+                    manager: "현장소장",
+                    start_date: startDate,
+                    end_date: endDate,
+                    issue: isCreatingNewProject ? "신규 현장" : (getCurrentProject()?.issue || "")
+                };
+
+                await fetch(GAS_API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // Apps Script CORS 우회
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                closeProjectEditModal();
+                await loadDataFromSheets(); // 시트에서 최신 데이터 다시 로드
+                
+                if (isCreatingNewProject) {
+                    openProject(targetId);
+                }
+            } catch (err) {
+                console.error("저장 오류:", err);
+                alert("저장 중 오류가 발생했습니다.");
+            } finally {
+                showLoading(false);
+            }
         }
 
         function openIssueEditModal() {
