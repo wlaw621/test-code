@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>멀티 현장 공정 관리 대시보드</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome CDN for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', sans-serif;
+            background-color: #f8fafc;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        .hide-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex justify-center items-center min-h-screen p-0 sm:p-4">
+
+    <!-- 로딩 오버레이 -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white hidden">
+        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-blue-500"></i>
+        <p class="text-sm font-bold">구글 스프레드시트와 통신 중...</p>
+    </div>
+
+    <div class="w-full sm:max-w-md h-screen sm:h-[880px] bg-slate-50 shadow-2xl sm:rounded-[40px] flex flex-col overflow-hidden relative border-0 sm:border-8 sm:border-slate-800">
+
+        <!-- ================= MAIN DASHBOARD VIEW ================= -->
+        <div id="mainDashboardView" class="flex flex-col h-full">
+            <!-- Header -->
+            <header class="bg-white px-5 pt-5 pb-3 border-b border-slate-200 flex justify-between items-center z-10 shrink-0">
+                <div>
+                    <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">공정 통합 관리 시스템</span>
+                    <h1 class="text-lg font-extrabold text-slate-800 mt-1">전체 현장 대시보드</h1>
+                </div>
+                <button onclick="openNewProjectModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-2xl text-xs font-bold transition shadow-md shadow-blue-500/20 flex items-center space-x-1.5">
+                    <i class="fa-solid fa-plus text-[10px]"></i>
+                    <span>현장 추가</span>
+                </button>
+            </header>
+
+            <!-- Dashboard Content -->
+            <main class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Summary Widget -->
+                <div class="grid grid-cols-2 gap-3 shrink-0">
+                    <div class="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-4 rounded-3xl shadow-md">
+                        <span class="text-[11px] text-blue-100 block font-medium">진행 중인 현장</span>
+                        <span id="statActiveProjects" class="text-2xl font-black font-mono mt-1 block">0개</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-200/80">
+                        <span class="text-[11px] text-slate-400 block font-medium">완료된 현장 (아카이브)</span>
+                        <span id="statCompletedProjects" class="text-2xl font-black text-slate-700 font-mono mt-1 block">0개</span>
+                    </div>
+                </div>
+
+                <!-- Active Projects Section -->
+                <div>
+                    <div class="flex justify-between items-center mb-2 px-1">
+                        <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">진행 중인 현장 (마감 임박순)</h2>
+                    </div>
+                    <div id="activeProjectsList" class="space-y-3">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Completed Projects Archive Section -->
+                <div class="pt-2">
+                    <div class="flex justify-between items-center mb-2 px-1">
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">완료된 공사 아카이브</h2>
+                    </div>
+                    <div id="completedProjectsList" class="space-y-3">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </main>
+
+            <!-- Bottom Nav -->
+            <nav class="bg-white border-t border-slate-200 px-6 py-3 flex justify-around items-center shrink-0">
+                <button class="flex flex-col items-center text-blue-600">
+                    <i class="fa-solid fa-building text-base"></i>
+                    <span class="text-[10px] mt-1 font-semibold">전체현장</span>
+                </button>
+                <button onclick="openNewProjectModal()" class="flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
+                    <i class="fa-solid fa-circle-plus text-base"></i>
+                    <span class="text-[10px] mt-1 font-medium">현장등록</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- ================= DETAIL PROJECT VIEW ================= -->
+        <div id="detailProjectView" class="flex flex-col h-full hidden">
+            <!-- Header -->
+            <header class="bg-white px-5 pt-4 pb-3 border-b border-slate-200 flex justify-between items-center z-10 shrink-0">
+                <div class="flex items-center space-x-2.5">
+                    <button onclick="backToDashboard()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
+                        <i class="fa-solid fa-arrow-left text-xs"></i>
+                    </button>
+                    <div>
+                        <span id="headerCompanyName" class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">업체명</span>
+                        <h1 id="headerProjectName" class="text-base font-extrabold text-slate-800 mt-0.5 truncate max-w-[180px]">현장명</h1>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <button onclick="openProjectEditModal()" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition flex items-center space-x-1">
+                        <i class="fa-solid fa-pen text-[10px]"></i>
+                        <span>수정</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Main Detail Scrollable Area -->
+            <main class="flex-1 overflow-y-auto p-4 space-y-4">
+
+                <!-- Overall Progress Card -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-lg relative overflow-hidden shrink-0">
+                    <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                    
+                    <div class="flex justify-between items-center mb-3">
+                        <div>
+                            <span class="text-[11px] text-slate-400 block">현장 담당자</span>
+                            <span id="displayManager" class="text-sm font-semibold text-slate-200">-</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[11px] text-slate-400 block">공사 기간 및 D-Day</span>
+                            <span id="displayPeriod" class="text-xs bg-slate-800/80 px-2.5 py-1 rounded-lg text-blue-400 font-mono font-medium border border-slate-700/50 block mt-0.5">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Today's & Tomorrow's Active Tasks Summary Bar -->
+                    <div class="bg-blue-900/40 border border-blue-500/30 rounded-2xl p-3 mb-3 space-y-2">
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[11px] font-bold text-blue-300"><i class="fa-solid fa-calendar-day mr-1"></i>금일 진행 공정 (Today)</span>
+                            </div>
+                            <div id="todayTaskList" class="text-xs text-white font-medium flex flex-wrap gap-1.5">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div class="pt-2 border-t border-blue-500/20">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[11px] font-bold text-indigo-300"><i class="fa-solid fa-calendar-plus mr-1"></i>명일 진행 예정 공정 (Tomorrow)</span>
+                            </div>
+                            <div id="tomorrowTaskList" class="text-xs text-white font-medium flex flex-wrap gap-1.5">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-700/60 mt-2">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs text-slate-300 font-medium">전체 종합 공정률 (자동 계산)</span>
+                            <span id="overallProgressText" class="text-base font-black text-blue-400 font-mono">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-700/80 h-3 rounded-full overflow-hidden p-0.5">
+                            <div id="overallProgressBar" class="bg-gradient-to-r from-blue-500 to-cyan-400 h-full rounded-full transition-all duration-500" style="width: 0%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Status Count Cards -->
+                    <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-700/60">
+                        <div onclick="openStatusDetailModal('완료공정')" class="bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 p-2.5 rounded-2xl text-center cursor-pointer transition active:scale-95 group">
+                            <span class="text-[10px] text-emerald-400 font-bold block mb-0.5 group-hover:underline">완료공정 <i class="fa-solid fa-chevron-right text-[8px]"></i></span>
+                            <span id="statCompletedCount" class="text-sm font-black text-white font-mono">0건</span>
+                        </div>
+                        <div onclick="openStatusDetailModal('진행중')" class="bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 p-2.5 rounded-2xl text-center cursor-pointer transition active:scale-95 group">
+                            <span class="text-[10px] text-blue-400 font-bold block mb-0.5 group-hover:underline">진행중 <i class="fa-solid fa-chevron-right text-[8px]"></i></span>
+                            <span id="statInProgressCount" class="text-sm font-black text-white font-mono">0건</span>
+                        </div>
+                        <div onclick="openStatusDetailModal('진행예정')" class="bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 p-2.5 rounded-2xl text-center cursor-pointer transition active:scale-95 group">
+                            <span class="text-[10px] text-amber-400 font-bold block mb-0.5 group-hover:underline">진행예정 <i class="fa-solid fa-chevron-right text-[8px]"></i></span>
+                            <span id="statUpcomingCount" class="text-sm font-black text-white font-mono">0건</span>
+                        </div>
+                    </div>
+
+                    <!-- Issue Report Section in Detail View -->
+                    <div class="pt-3 mt-3 border-t border-slate-700/60">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[11px] text-amber-400 font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>특이사항 및 이슈 보고</span>
+                            <button onclick="openIssueEditModal()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded-lg transition">편집</button>
+                        </div>
+                        <p id="displayIssue" class="text-xs text-slate-300 bg-slate-800/60 p-2.5 rounded-xl font-sans">등록된 특이사항이 없습니다.</p>
+                    </div>
+                </div>
+
+                <!-- Interactive Timeline Section -->
+                <div class="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 shrink-0">
+                    <div class="flex justify-between items-center mb-2">
+                        <div>
+                            <h2 class="text-sm font-bold text-slate-800">공종별 멀티 회차 타임라인</h2>
+                            <p class="text-[11px] text-slate-400">날짜 바를 움직여 원하는 날짜 선택 <span class="text-blue-600 font-bold">(Today: <span id="todayDisplayStr">2026-09-01</span>)</span></p>
+                        </div>
+                        <button onclick="resetSelectedDate()" class="text-xs text-blue-600 font-semibold bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-xl transition">
+                            오늘로 이동
+                        </button>
+                    </div>
+
+                    <!-- Date Scroller / Slider Bar -->
+                    <div class="mb-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[11px] font-bold text-slate-700">선택 날짜: <span id="selectedDateDisplay" class="text-blue-600 font-mono font-black">2026-09-01</span></span>
+                            <button onclick="openDateInfoModal()" class="px-2.5 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-lg shadow-sm hover:bg-blue-700 transition">
+                                <i class="fa-solid fa-list-check mr-1"></i>해당 날짜 공사 조회
+                            </button>
+                        </div>
+                        <input type="range" id="timelineDateSlider" min="0" max="90" value="0" oninput="onTimelineSliderChange(this.value)" class="w-full accent-blue-600 cursor-pointer h-2 bg-slate-200 rounded-lg">
+                    </div>
+
+                    <!-- Split Layout -->
+                    <div class="flex border border-slate-200/60 rounded-2xl overflow-hidden bg-slate-50/50">
+                        <div id="stickyNamesContainer" class="w-32 bg-white border-r border-slate-200 z-10 shrink-0 select-none shadow-sm">
+                            <div class="text-[10px] text-slate-400 font-bold px-3 py-2 border-b border-slate-100 bg-slate-50">공종명</div>
+                            <div id="timelineNamesList" class="space-y-3 py-2 text-xs"></div>
+                        </div>
+                        <div id="timelineScrollContainer" class="flex-1 overflow-x-auto pb-3 pt-1 hide-scrollbar">
+                            <div class="min-w-[800px] relative px-2">
+                                <div class="grid grid-cols-5 text-[10px] text-slate-400 text-center mb-2 font-mono border-b border-slate-100 pb-1">
+                                    <span>시작일</span>
+                                    <span>중간점</span>
+                                    <span>오늘</span>
+                                    <span>후반부</span>
+                                    <span>종료일</span>
+                                </div>
+                                <div id="timelineRows" class="space-y-3 text-xs pt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center pt-1 px-1">
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-800">공종별 공정 관리 (Multi-Phase)</h2>
+                        <p class="text-[11px] text-slate-400">카드를 터치하여 다중 회차 기간을 추가·수정하세요</p>
+                    </div>
+                    <button onclick="openAddTradeModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-md shadow-blue-500/20 flex items-center space-x-1">
+                        <i class="fa-solid fa-plus text-[10px]"></i>
+                        <span>공종 추가</span>
+                    </button>
+                </div>
+
+                <div class="space-y-3 pb-6" id="tradeListContainer"></div>
+            </main>
+
+            <!-- Bottom Navigation -->
+            <nav class="bg-white border-t border-slate-200 px-6 py-3 flex justify-around items-center shrink-0">
+                <button onclick="backToDashboard()" class="flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
+                    <i class="fa-solid fa-building text-base"></i>
+                    <span class="text-[10px] mt-1 font-medium">전체현장</span>
+                </button>
+                <button onclick="openProjectEditModal()" class="flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
+                    <i class="fa-solid fa-gear text-base"></i>
+                    <span class="text-[10px] mt-1 font-medium">현장설정</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- ================= MODALS ================= -->
+        <!-- Project Info Edit Modal -->
+        <div id="projectModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl transform transition-all">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-base font-bold text-slate-800" id="projectModalTitle">현장 정보 변경</h3>
+                    <button onclick="closeProjectEditModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="space-y-3 text-left">
+                    <div>
+                        <label class="text-xs text-slate-500 font-medium block mb-1">현장명</label>
+                        <input type="text" id="inputProjectName" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-500 font-medium block mb-1">고객명 / 업체명</label>
+                        <input type="text" id="inputClientName" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-xs text-slate-500 font-medium block mb-1">전체 시작일</label>
+                            <input type="date" id="inputStartDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 font-mono">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 font-medium block mb-1">전체 종료일</label>
+                            <input type="date" id="inputEndDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 font-mono">
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-6 flex space-x-2">
+                    <button onclick="closeProjectEditModal()" class="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">취소</button>
+                    <button onclick="saveProjectInfo()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">저장하기</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Issue Edit Modal -->
+        <div id="issueModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl transform transition-all">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-base font-bold text-slate-800">특이사항 및 이슈 편집</h3>
+                    <button onclick="closeIssueEditModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="space-y-3 text-left">
+                    <div>
+                        <label class="text-xs text-slate-500 font-medium block mb-1">이슈 내용</label>
+                        <textarea id="inputIssueText" rows="4" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 resize-none" placeholder="특이사항을 입력하세요..."></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex space-x-2">
+                    <button onclick="closeIssueEditModal()" class="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">취소</button>
+                    <button onclick="saveIssueInfo()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">저장</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade Info Edit Modal -->
+        <div id="tradeModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl transform transition-all max-h-[90vh] flex flex-col">
+                <div class="flex justify-between items-center mb-3 shrink-0">
+                    <h3 id="tradeModalTitle" class="text-base font-bold text-slate-800">공종 정보 및 회차 관리</h3>
+                    <button onclick="closeTradeModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <input type="hidden" id="editTradeIndex">
+                
+                <div class="space-y-4 text-left overflow-y-auto pr-1 flex-1">
+                    <div>
+                        <label class="text-xs text-slate-500 font-medium block mb-1">공종명 선택</label>
+                        <select id="editTradeSelect" onchange="onTradeSelectChange(this.value)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 mb-2">
+                        </select>
+                        <input type="text" id="editTradeName" placeholder="직접 공종명을 입력하세요" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 hidden">
+                    </div>
+
+                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <div>
+                                <label class="text-xs font-bold text-slate-700 block">공사 기간 회차 관리</label>
+                                <span class="text-[10px] text-slate-400">상태 및 진행률이 자동 계산됩니다.</span>
+                            </div>
+                            <button type="button" onclick="addPhaseRow()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition shrink-0">
+                                <i class="fa-solid fa-plus mr-1"></i>기간 추가
+                            </button>
+                        </div>
+                        <div id="phasesContainer" class="space-y-2"></div>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex space-x-2 shrink-0 pt-2 border-t border-slate-100">
+                    <button onclick="closeTradeModal()" class="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">취소</button>
+                    <button onclick="saveTradeInfo()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">저장</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Date Inquiry Modal -->
+        <div id="dateInfoModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl transform transition-all max-h-[85vh] flex flex-col">
+                <div class="flex justify-between items-center mb-3 shrink-0">
+                    <div>
+                        <span class="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full">날짜별 공정 조회</span>
+                        <h3 id="modalInquiryDateTitle" class="text-base font-extrabold text-slate-800 mt-0.5">2026-09-01</h3>
+                    </div>
+                    <button onclick="closeDateInfoModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div id="dateInquiryList" class="space-y-2.5 overflow-y-auto pr-1 flex-1 py-1"></div>
+                <div class="mt-4 pt-3 border-t border-slate-100 shrink-0">
+                    <button onclick="closeDateInfoModal()" class="w-full bg-slate-100 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">닫기</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Detail Modal -->
+        <div id="statusDetailModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl transform transition-all max-h-[85vh] flex flex-col">
+                <div class="flex justify-between items-center mb-3 shrink-0">
+                    <div>
+                        <span id="statusModalBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full">상태별 공정</span>
+                        <h3 id="statusModalTitle" class="text-base font-extrabold text-slate-800 mt-0.5">공정 상세 리스트</h3>
+                    </div>
+                    <button onclick="closeStatusDetailModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div id="statusModalList" class="space-y-2.5 overflow-y-auto pr-1 flex-1 py-1"></div>
+                <div class="mt-4 pt-3 border-t border-slate-100 shrink-0">
+                    <button onclick="closeStatusDetailModal()" class="w-full bg-slate-100 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 사용자가 배포한 실제 구글 Apps Script 웹 앱 URL
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwzzlMCdkoYAgBPgckHOIK6Pv1W6uPMc3a-JMW4QgIwtIhW-BQURE5HGunjPHvhM15w/exec";
+
+        const TODAY = new Date(); // 오늘 날짜 기준 실시간 연동
+        const TOMORROW = new Date(TODAY);
+        TOMORROW.setDate(TODAY.getDate() + 1);
+
+        let selectedDate = new Date(TODAY);
+        let projects = [];
+        let currentProjectId = null;
+        let isCreatingNewProject = false;
+
+        const PREDEFINED_TRADES = [
+            "가설공사", "철거공사", "방수공사", "습식공사", "목공사", 
+            "단열공사", "전기통신공사", "소방공사", "위생급수공사", "난방공사", 
+            "보일러공사", "공조설비공사", "에어컨공사", "가스설비공사", "창호공사", 
+            "타일공사", "도장공사", "필름공사", "도배공사", "가구공사", "사인공사", "기타마감"
+        ];
+
+        window.onload = function() {
+            const todayStr = formatDate(TODAY);
+            document.getElementById('todayDisplayStr').innerText = todayStr;
+            loadDataFromSheets();
+        };
+
+        function formatDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // 구글 시트 데이터 비동기 로드 함수
+        async function loadDataFromSheets() {
+            showLoading(true);
+            try {
+                const [projRes, stageRes] = await Promise.all([
+                    fetch(`${GAS_API_URL}?action=getProjects`),
+                    fetch(`${GAS_API_URL}?action=getStages`)
+                ]);
+
+                const rawProjects = await projRes.json();
+                const rawStages = await stageRes.json();
+
+                if (!Array.isArray(rawProjects)) {
+                    throw new Error("Projects 데이터를 불러오지 못했습니다.");
+                }
+
+                // Projects와 Stages 데이터를 대시보드 구조에 맞게 매핑
+                projects = rawProjects.map(p => {
+                    const pStages = rawStages.filter(s => String(s.project_id) === String(p.project_id));
+                    
+                    // 공종별로 그룹화
+                    const tradeMap = {};
+                    pStages.forEach(s => {
+                        const tName = s.stage_name || "일반공사";
+                        if (!tradeMap[tName]) {
+                            tradeMap[tName] = { name: tName, phases: [] };
+                        }
+                        tradeMap[tName].phases.push({
+                            start: s.start_date ? formatDateStr(s.start_date) : p.start_date,
+                            end: s.end_date ? formatDateStr(s.end_date) : p.end_date
+                        });
+                    });
+
+                    let trades = Object.values(tradeMap);
+                    if (trades.length === 0) {
+                        trades = [{ name: "가설공사", phases: [{ start: p.start_date, end: p.end_date }] }];
+                    }
+
+                    return {
+                        id: p.project_id,
+                        name: p.name,
+                        company: p.client_name || "발주처 미정",
+                        manager: p.manager || "담당자 미지정",
+                        startDate: formatDateStr(p.start_date),
+                        endDate: formatDateStr(p.end_date),
+                        issue: p.issue || "등록된 특이사항이 없습니다.",
+                        trades: trades.map((t, idx) => ({ id: idx + 1, name: t.name, phases: t.phases }))
+                    };
+                });
+
+                renderDashboard();
+            } catch (err) {
+                console.error("데이터 로딩 오류:", err);
+                alert("구글 스프레드시트 연동 중 오류가 발생했습니다. Apps Script 배포 상태를 확인해주세요.");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function formatDateStr(dateStr) {
+            if (!dateStr) return formatDate(TODAY);
+            try {
+                const d = new Date(dateStr);
+                if (!isNaN(d.getTime())) return formatDate(d);
+            } catch(e) {}
+            return String(dateStr).substring(0, 10);
+        }
+
+        function showLoading(show) {
+            const el = document.getElementById('loadingOverlay');
+            if (show) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+        }
+
+        function getDaysCount(startDateStr, endDateStr) {
+            const start = new Date(startDateStr);
+            const end = new Date(endDateStr);
+            return Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+        }
+
+        function getRemainingDaysText(endDateStr) {
+            const end = new Date(endDateStr);
+            const diffTime = end - TODAY;
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays === 0) return "D-Day";
+            if (diffDays > 0) return `D-${diffDays}`;
+            return `D+${Math.abs(diffDays)}`;
+        }
+
+        function getActiveTradesForDate(project, targetDate) {
+            let active = [];
+            project.trades.forEach(trade => {
+                if (trade.phases) {
+                    trade.phases.forEach(phase => {
+                        const s = new Date(phase.start);
+                        const e = new Date(phase.end);
+                        if (targetDate >= s && targetDate <= e) {
+                            if (!active.includes(trade.name)) active.push(trade.name);
+                        }
+                    });
+                }
+            });
+            return active;
+        }
+
+        function renderDashboard() {
+            document.getElementById('mainDashboardView').classList.remove('hidden');
+            document.getElementById('detailProjectView').classList.add('hidden');
+
+            const activeList = document.getElementById('activeProjectsList');
+            const completedList = document.getElementById('completedProjectsList');
+            activeList.innerHTML = '';
+            completedList.innerHTML = '';
+
+            let activeCount = 0;
+            let completedCount = 0;
+
+            let sortedProjects = [...projects].sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
+
+            sortedProjects.forEach(proj => {
+                const pEnd = new Date(proj.endDate);
+                const isCompleted = TODAY > pEnd;
+                const totalProjDays = getDaysCount(proj.startDate, proj.endDate);
+                const dDayText = getRemainingDaysText(proj.endDate);
+                
+                let sumProgress = 0;
+                proj.trades.forEach(t => {
+                    const m = calculateTradeMetrics(t.phases, TODAY);
+                    sumProgress += m.progress;
+                });
+                const avgProg = proj.trades.length > 0 ? Math.round(sumProgress / proj.trades.length) : 0;
+
+                const todayTrades = getActiveTradesForDate(proj, TODAY);
+                const tomorrowTrades = getActiveTradesForDate(proj, TOMORROW);
+
+                let todayHtml = todayTrades.length > 0 ? todayTrades.join(', ') : '없음';
+                let tomorrowHtml = tomorrowTrades.length > 0 ? tomorrowTrades.join(', ') : '없음';
+
+                const cardHtml = `
+                    <div onclick="openProject('${proj.id}')" class="bg-white rounded-3xl p-4 shadow-sm border border-slate-200/80 hover:shadow-md transition cursor-pointer relative overflow-hidden group">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <div class="flex items-center space-x-1.5 mb-1">
+                                    <span class="text-[10px] font-bold ${isCompleted ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'} px-2 py-0.5 rounded-full">${isCompleted ? '공사 완료' : '진행 중'}</span>
+                                    <span class="text-[10px] bg-amber-50 text-amber-700 font-extrabold px-2 py-0.5 rounded-full font-mono">${dDayText}</span>
+                                </div>
+                                <h3 class="font-extrabold text-slate-800 text-sm group-hover:text-blue-600 transition">${proj.name}</h3>
+                                <span class="text-[11px] text-slate-500 font-mono block mt-0.5"><i class="fa-regular fa-calendar mr-1"></i>${proj.startDate} ~ ${proj.endDate} (${totalProjDays}일)</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-base font-black text-blue-600 font-mono">${isCompleted ? 100 : avgProg}%</span>
+                                <span class="text-[10px] text-slate-400 block">종합 공정률</span>
+                            </div>
+                        </div>
+                        <div class="bg-slate-50 p-2.5 rounded-2xl mt-3 border border-slate-100 space-y-1.5 text-xs">
+                            <div class="flex items-center space-x-1.5 text-slate-700">
+                                <span class="bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">금일</span>
+                                <span class="truncate font-medium">${todayHtml}</span>
+                            </div>
+                            <div class="flex items-center space-x-1.5 text-slate-600">
+                                <span class="bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">명일</span>
+                                <span class="truncate font-medium">${tomorrowHtml}</span>
+                            </div>
+                        </div>
+                        <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <div class="flex items-center space-x-2 text-slate-600 truncate">
+                                <i class="fa-solid fa-user-tie text-slate-400"></i>
+                                <span class="truncate">${proj.company}</span>
+                            </div>
+                            <div class="text-slate-400 group-hover:text-blue-600 transition flex items-center space-x-1 shrink-0 font-bold text-[11px]">
+                                <span>상세보기</span>
+                                <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                if (isCompleted) {
+                    completedCount++;
+                    completedList.innerHTML += cardHtml;
+                } else {
+                    activeCount++;
+                    activeList.innerHTML += cardHtml;
+                }
+            });
+
+            document.getElementById('statActiveProjects').innerText = activeCount + '개';
+            document.getElementById('statCompletedProjects').innerText = completedCount + '개';
+        }
+
+        function openProject(id) {
+            currentProjectId = id;
+            document.getElementById('mainDashboardView').classList.add('hidden');
+            document.getElementById('detailProjectView').classList.remove('hidden');
+            initTimelineSlider();
+            renderDetailAll();
+        }
+
+        function backToDashboard() {
+            currentProjectId = null;
+            renderDashboard();
+        }
+
+        function getCurrentProject() {
+            return projects.find(p => String(p.id) === String(currentProjectId));
+        }
+
+        function initTimelineSlider() {
+            const proj = getCurrentProject();
+            if (!proj) return;
+            const pStart = new Date(proj.startDate);
+            const pEnd = new Date(proj.endDate);
+            const totalDays = Math.max(1, Math.round((pEnd - pStart) / (1000 * 60 * 60 * 24)));
+            
+            const slider = document.getElementById('timelineDateSlider');
+            slider.max = totalDays;
+            
+            const currentDiff = Math.round((selectedDate - pStart) / (1000 * 60 * 60 * 24));
+            slider.value = Math.max(0, Math.min(totalDays, currentDiff));
+            updateSelectedDateDisplay();
+        }
+
+        function onTimelineSliderChange(val) {
+            const proj = getCurrentProject();
+            if (!proj) return;
+            const pStart = new Date(proj.startDate);
+            const targetDate = new Date(pStart);
+            targetDate.setDate(pStart.getDate() + parseInt(val));
+            selectedDate = targetDate;
+            updateSelectedDateDisplay();
+            renderTimeline();
+        }
+
+        function resetSelectedDate() {
+            selectedDate = new Date(TODAY);
+            initTimelineSlider();
+            renderTimeline();
+        }
+
+        function updateSelectedDateDisplay() {
+            document.getElementById('selectedDateDisplay').innerText = formatDate(selectedDate);
+        }
+
+        function calculateTradeMetrics(phases, evalDate = TODAY) {
+            if (!phases || phases.length === 0) return { progress: 0, status: "진행예정" };
+
+            let totalDays = 0;
+            let elapsedDays = 0;
+            let hasStarted = false;
+            let isAllCompleted = true;
+
+            phases.forEach(p => {
+                const start = new Date(p.start);
+                const end = new Date(p.end);
+                const duration = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+                totalDays += duration;
+
+                if (evalDate >= start) {
+                    hasStarted = true;
+                    if (evalDate <= end) {
+                        isAllCompleted = false;
+                        const passed = Math.round((evalDate - start) / (1000 * 60 * 60 * 24)) + 1;
+                        elapsedDays += Math.min(duration, passed);
+                    } else {
+                        elapsedDays += duration;
+                    }
+                } else {
+                    isAllCompleted = false;
+                }
+            });
+
+            if (!hasStarted) return { progress: 0, status: "진행예정" };
+            if (isAllCompleted || elapsedDays >= totalDays) return { progress: 100, status: "완료공정" };
+
+            const calculated = Math.min(99, Math.max(1, Math.round((elapsedDays / totalDays) * 100)));
+            return { progress: calculated, status: "진행중" };
+        }
+
+        function renderDetailAll() {
+            renderHeaderInfo();
+            renderTodayAndTomorrowTasks();
+            renderOverallProgress();
+            renderStatusCounts();
+            renderTimeline();
+            renderTradeList();
+        }
+
+        function renderHeaderInfo() {
+            const proj = getCurrentProject();
+            if (!proj) return;
+            const totalProjDays = getDaysCount(proj.startDate, proj.endDate);
+            const dDayText = getRemainingDaysText(proj.endDate);
+
+            document.getElementById('headerCompanyName').innerText = proj.company;
+            document.getElementById('headerProjectName').innerText = proj.name;
+            document.getElementById('displayManager').innerText = proj.manager;
+            document.getElementById('displayPeriod').innerHTML = `${proj.startDate.replaceAll('-', '.')} - ${proj.endDate.replaceAll('-','.')} (${totalProjDays}일) <span class="text-amber-300 font-bold ml-1">(${dDayText})</span>`;
+            document.getElementById('displayIssue').innerText = proj.issue || "등록된 특이사항이 없습니다.";
+        }
+
+        function renderTodayAndTomorrowTasks() {
+            const proj = getCurrentProject();
+            if (!proj) return;
+
+            const todayContainer = document.getElementById('todayTaskList');
+            const tomorrowContainer = document.getElementById('tomorrowTaskList');
+            todayContainer.innerHTML = '';
+            tomorrowContainer.innerHTML = '';
+
+            const todayActiveTrades = getActiveTradesForDate(proj, TODAY);
+            const tomorrowActiveTrades = getActiveTradesForDate(proj, TOMORROW);
+
+            if (todayActiveTrades.length === 0) {
+                todayContainer.innerHTML = `<span class="text-xs text-blue-200/70 italic">금일 예정된 진행 공정이 없습니다.</span>`;
+            } else {
+                todayActiveTrades.forEach(tradeName => {
+                    todayContainer.innerHTML += `<span class="bg-blue-600/60 border border-blue-400/40 px-2 py-0.5 rounded-lg text-xs font-semibold">${tradeName}</span>`;
+                });
+            }
+
+            if (tomorrowActiveTrades.length === 0) {
+                tomorrowContainer.innerHTML = `<span class="text-xs text-blue-200/70 italic">명일 예정된 진행 공정이 없습니다.</span>`;
+            } else {
+                tomorrowActiveTrades.forEach(tradeName => {
+                    tomorrowContainer.innerHTML += `<span class="bg-indigo-600/60 border border-indigo-400/40 px-2 py-0.5 rounded-lg text-xs font-semibold">${tradeName}</span>`;
+                });
+            }
+        }
+
+        function renderOverallProgress() {
+            const proj = getCurrentProject();
+            if (!proj || proj.trades.length === 0) return;
+            
+            let sumProgress = 0;
+            proj.trades.forEach(t => {
+                const metrics = calculateTradeMetrics(t.phases, TODAY);
+                sumProgress += metrics.progress;
+            });
+
+            const avgProgress = Math.round(sumProgress / proj.trades.length);
+            document.getElementById('overallProgressText').innerText = avgProgress + '%';
+            document.getElementById('overallProgressBar').style.width = avgProgress + '%';
+        }
+
+        function renderStatusCounts() {
+            const proj = getCurrentProject();
+            if (!proj) return;
+
+            let completedCount = 0;
+            let inProgressCount = 0;
+            let upcomingCount = 0;
+
+            proj.trades.forEach(trade => {
+                const metrics = calculateTradeMetrics(trade.phases, TODAY);
+                if (metrics.status === '완료공정') completedCount++;
+                else if (metrics.status === '진행중') inProgressCount++;
+                else if (metrics.status === '진행예정') upcomingCount++;
+            });
+
+            document.getElementById('statCompletedCount').innerText = completedCount + '건';
+            document.getElementById('statInProgressCount').innerText = inProgressCount + '건';
+            document.getElementById('statUpcomingCount').innerText = upcomingCount + '건';
+        }
+
+        function renderTimeline() {
+            const proj = getCurrentProject();
+            if (!proj) return;
+
+            const namesContainer = document.getElementById('timelineNamesList');
+            const rowsContainer = document.getElementById('timelineRows');
+            namesContainer.innerHTML = '';
+            rowsContainer.innerHTML = '';
+
+            const pStart = new Date(proj.startDate);
+            const pEnd = new Date(proj.endDate);
+            const totalProjDuration = Math.max(1, Math.round((pEnd - pStart) / (1000 * 60 * 60 * 24)));
+            
+            const currentDiff = Math.round((selectedDate - pStart) / (1000 * 60 * 60 * 24));
+            let indicatorPercent = (currentDiff / totalProjDuration) * 100;
+            indicatorPercent = Math.max(0, Math.min(100, indicatorPercent));
+
+            proj.trades.forEach((trade) => {
+                const metrics = calculateTradeMetrics(trade.phases, TODAY);
+                let barColor = 'bg-slate-300';
+                
+                let isActiveOnSelected = false;
+                if (trade.phases) {
+                    trade.phases.forEach(phase => {
+                        const s = new Date(phase.start);
+                        const e = new Date(phase.end);
+                        if (selectedDate >= s && selectedDate <= e) isActiveOnSelected = true;
+                    });
+                }
+
+                if (metrics.status === '완료공정') barColor = 'bg-emerald-500';
+                else if (metrics.status === '진행중') barColor = isActiveOnSelected ? 'bg-blue-600 shadow-md ring-2 ring-blue-300' : 'bg-blue-400';
+
+                const nameDiv = document.createElement('div');
+                nameDiv.className = `px-3 h-7 flex items-center text-[11px] truncate transition-all ${isActiveOnSelected ? 'text-blue-600 font-extrabold bg-blue-50/60' : 'text-slate-700 font-semibold'}`;
+                nameDiv.innerText = trade.name;
+                namesContainer.appendChild(nameDiv);
+
+                let phasesHtml = '';
+                if (trade.phases) {
+                    trade.phases.forEach((phase, pIdx) => {
+                        const phaseStart = new Date(phase.start);
+                        const phaseEnd = new Date(phase.end);
+                        const startDiff = Math.round((phaseStart - pStart) / (1000 * 60 * 60 * 24));
+                        const duration = Math.round((phaseEnd - phaseStart) / (1000 * 60 * 60 * 24)) + 1;
+
+                        let leftPercent = Math.max(0, Math.min(100, (startDiff / totalProjDuration) * 100));
+                        let widthPercent = Math.max(2, Math.min(100 - leftPercent, (duration / totalProjDuration) * 100));
+
+                        phasesHtml += `
+                            <div class="absolute h-4 rounded-md ${barColor} border border-white/40 flex items-center justify-center px-1 cursor-pointer hover:brightness-110 transition shadow-xs" 
+                                 style="left: ${leftPercent}%; width: ${widthPercent}%;" 
+                                 onclick="openEditTradeModal(${trade.id})">
+                                 <span class="text-[8px] text-white font-extrabold truncate">${pIdx > 0 ? (pIdx+1)+'차' : ''}</span>
+                            </div>
+                        `;
+                    });
+                }
+
+                rowsContainer.innerHTML += `
+                    <div class="h-7 flex items-center relative">
+                        <div class="absolute top-0 bottom-0 w-0.5 bg-blue-600 z-20 pointer-events-none shadow-sm" style="left: ${indicatorPercent}%;"></div>
+                        <div class="w-full relative h-5 bg-slate-100 rounded-lg border border-slate-200/60">${phasesHtml}</div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderTradeList() {
+            const proj = getCurrentProject();
+            if (!proj) return;
+
+            const container = document.getElementById('tradeListContainer');
+            container.innerHTML = '';
+
+            proj.trades.forEach(trade => {
+                const metrics = calculateTradeMetrics(trade.phases, TODAY);
+                let badgeClass = 'bg-slate-100 text-slate-600';
+                let circleColor = 'text-slate-300';
+                let strokeDash = 125.6 - (125.6 * metrics.progress) / 100;
+
+                if (metrics.status === '완료공정') { badgeClass = 'bg-emerald-50 text-emerald-600'; circleColor = 'text-emerald-500'; }
+                else if (metrics.status === '진행중') { badgeClass = 'bg-blue-50 text-blue-600'; circleColor = 'text-blue-600'; }
+                else if (metrics.status === '진행예정') { badgeClass = 'bg-amber-50 text-amber-700'; circleColor = 'text-amber-400'; }
+
+                let phasesText = trade.phases ? trade.phases.map((p, idx) => `<span class="block">${idx+1}차 기간: ${p.start} ~ ${p.end} (${getDaysCount(p.start, p.end)}일)</span>`).join('') : '';
+
+                container.innerHTML += `
+                    <div onclick="openEditTradeModal(${trade.id})" class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative hover:shadow-md transition cursor-pointer group">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-[10px] ${badgeClass} px-2 py-0.5 rounded font-semibold">${metrics.status}</span>
+                                    <span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">총 ${trade.phases.length}개 회차</span>
+                                </div>
+                                <h3 class="font-bold text-slate-800 mt-1 text-sm group-hover:text-blue-600 transition">[${trade.name}]</h3>
+                                <div class="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl mt-2 font-mono space-y-1">${phasesText}</div>
+                            </div>
+                            <div class="flex items-center space-x-3 ml-3 shrink-0">
+                                <div class="relative w-12 h-12 flex items-center justify-center">
+                                    <svg class="w-full h-full transform -rotate-90">
+                                        <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" class="text-slate-100 fill-none"></circle>
+                                        <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" class="${circleColor} fill-none transition-all duration-500" stroke-dasharray="125.6" stroke-dashoffset="${strokeDash}"></circle>
+                                    </svg>
+                                    <span class="absolute text-[11px] font-extrabold text-slate-700">${metrics.progress}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function openNewProjectModal() {
+            isCreatingNewProject = true;
+            document.getElementById('projectModalTitle').innerText = '새 현장 등록';
+            document.getElementById('inputProjectName').value = '';
+            document.getElementById('inputClientName').value = '';
+            document.getElementById('inputStartDate').value = formatDate(TODAY);
+            document.getElementById('inputEndDate').value = formatDate(new Date(TODAY.getTime() + 60*24*60*60*1000));
+            document.getElementById('projectModal').classList.remove('hidden');
+        }
+
+        function openProjectEditModal() {
+            isCreatingNewProject = false;
+            const proj = getCurrentProject();
+            if (!proj) return;
+            document.getElementById('projectModalTitle').innerText = '현장 정보 변경';
+            document.getElementById('inputProjectName').value = proj.name;
+            document.getElementById('inputClientName').value = proj.company;
+            document.getElementById('inputStartDate').value = proj.startDate;
+            document.getElementById('inputEndDate').value = proj.endDate;
+            document.getElementById('projectModal').classList.remove('hidden');
+        }
+
+        function closeProjectEditModal() { document.getElementById('projectModal').classList.add('hidden'); }
+
+        async function saveProjectInfo() {
+            const name = document.getElementById('inputProjectName').value;
+            const clientName = document.getElementById('inputClientName').value;
+            const startDate = document.getElementById('inputStartDate').value;
+            const endDate = document.getElementById('inputEndDate').value;
+            if (!name) return alert("현장명을 입력해주세요.");
+
+            if (isCreatingNewProject) {
+                const newId = 'PRJ-' + String(Date.now()).slice(-4);
+                projects.push({
+                    id: newId, name, company: clientName, manager: "현장소장", startDate, endDate, issue: "신규 현장",
+                    trades: [{ id: 1, name: "가설공사", phases: [{ start: startDate, end: endDate }] }]
+                });
+                closeProjectEditModal();
+                loadDataFromSheets(); // 백엔드 연동 시 POST 구현 가능
+                openProject(newId);
+            } else {
+                const proj = getCurrentProject();
+                if (proj) {
+                    proj.name = name;
+                    proj.company = clientName;
+                    proj.startDate = startDate;
+                    proj.endDate = endDate;
+                }
+                closeProjectEditModal();
+                initTimelineSlider();
+                renderDetailAll();
+            }
+        }
+
+        function openIssueEditModal() {
+            const proj = getCurrentProject();
+            if (!proj) return;
+            document.getElementById('inputIssueText').value = proj.issue || '';
+            document.getElementById('issueModal').classList.remove('hidden');
+        }
+        function closeIssueEditModal() { document.getElementById('issueModal').classList.add('hidden'); }
+        function saveIssueInfo() {
+            const proj = getCurrentProject();
+            if (!proj) return;
+            proj.issue = document.getElementById('inputIssueText').value;
+            document.getElementById('displayIssue').innerText = proj.issue;
+            closeIssueEditModal();
+        }
+
+        function openDateInfoModal() {
+            const dateStr = formatDate(selectedDate);
+            document.getElementById('modalInquiryDateTitle').innerText = dateStr + " 공사 조회";
+            const listContainer = document.getElementById('dateInquiryList');
+            listContainer.innerHTML = '';
+
+            const proj = getCurrentProject();
+            if (!proj) return;
+
+            let activeTrades = [];
+            proj.trades.forEach(trade => {
+                trade.phases.forEach((phase, pIdx) => {
+                    if (selectedDate >= new Date(phase.start) && selectedDate <= new Date(phase.end)) {
+                        activeTrades.push({ name: trade.name, phaseNum: pIdx + 1, start: phase.start, end: phase.end, ...calculateTradeMetrics(trade.phases, selectedDate) });
+                    }
+                });
+            });
+
+            if (activeTrades.length === 0) {
+                listContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs"><i class="fa-regular fa-calendar-xmark text-2xl mb-2 block"></i>해당 날짜에 진행 중인 공정이 없습니다.</div>`;
+            } else {
+                activeTrades.forEach((item, idx) => {
+                    listContainer.innerHTML += `
+                        <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between">
+                            <div>
+                                <div class="flex items-center space-x-1.5 mb-0.5">
+                                    <span class="text-[10px] bg-blue-600 text-white px-1.5 rounded font-bold">#${idx+1}</span>
+                                    <span class="text-xs font-extrabold text-slate-800">${item.name} (${item.phaseNum}차)</span>
+                                </div>
+                                <span class="text-[11px] text-slate-500 font-mono">${item.start} ~ ${item.end}</span>
+                            </div>
+                            <div class="text-right"><span class="text-xs font-black text-blue-600 font-mono">${item.progress}%</span></div>
+                        </div>`;
+                });
+            }
+            document.getElementById('dateInfoModal').classList.remove('hidden');
+        }
+        function closeDateInfoModal() { document.getElementById('dateInfoModal').classList.add('hidden'); }
+
+        function openStatusDetailModal(statusType) {
+            const proj = getCurrentProject();
+            if (!proj) return;
+            document.getElementById('statusModalTitle').innerText = `${statusType} 내역`;
+            const listContainer = document.getElementById('statusModalList');
+            listContainer.innerHTML = '';
+
+            let filtered = proj.trades.filter(t => calculateTradeMetrics(t.phases, TODAY).status === statusType);
+            if (filtered.length === 0) {
+                listContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs">내역이 없습니다.</div>`;
+            } else {
+                filtered.forEach((item, idx) => {
+                    let phasesHtml = item.phases.map((p, pIdx) => `<span class="block font-mono text-[11px] text-slate-500">${pIdx+1}차: ${p.start} ~ ${p.end}</span>`).join('');
+                    listContainer.innerHTML += `<div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between"><div class="space-y-1"><span class="text-xs font-extrabold text-slate-800">${item.name}</span>${phasesHtml}</div><span class="text-xs font-black text-blue-600 font-mono">${calculateTradeMetrics(item.phases, TODAY).progress}%</span></div>`;
+                });
+            }
+            document.getElementById('statusDetailModal').classList.remove('hidden');
+        }
+        function closeStatusDetailModal() { document.getElementById('statusDetailModal').classList.add('hidden'); }
+
+        function populateTradeSelect(selectedVal = '') {
+            const selectEl = document.getElementById('editTradeSelect');
+            const inputEl = document.getElementById('editTradeName');
+            selectEl.innerHTML = '';
+
+            PREDEFINED_TRADES.forEach(trade => {
+                const opt = document.createElement('option');
+                opt.value = trade; opt.innerText = trade;
+                selectEl.appendChild(opt);
+            });
+            const customOpt = document.createElement('option');
+            customOpt.value = 'CUSTOM_INPUT'; customOpt.innerText = '직접입력';
+            selectEl.appendChild(customOpt);
+
+            if (PREDEFINED_TRADES.includes(selectedVal)) {
+                selectEl.value = selectedVal; inputEl.value = selectedVal; inputEl.classList.add('hidden');
+            } else {
+                selectEl.value = 'CUSTOM_INPUT'; inputEl.value = selectedVal; inputEl.classList.remove('hidden');
+            }
+        }
+
+        function onTradeSelectChange(val) {
+            const inputEl = document.getElementById('editTradeName');
+            if (val === 'CUSTOM_INPUT') { inputEl.value = ''; inputEl.classList.remove('hidden'); inputEl.focus(); }
+            else { inputEl.value = val; inputEl.classList.add('hidden'); }
+        }
+
+        function openAddTradeModal() {
+            document.getElementById('tradeModalTitle').innerText = '새 공종 항목 추가';
+            document.getElementById('editTradeIndex').value = '';
+            populateTradeSelect(PREDEFINED_TRADES[0]);
+            renderPhasesInputs([{ start: formatDate(TODAY), end: formatDate(TODAY) }]);
+            document.getElementById('tradeModal').classList.remove('hidden');
+        }
+
+        function openEditTradeModal(id) {
+            const proj = getCurrentProject();
+            const trade = proj.trades.find(t => t.id === id);
+            if (!trade) return;
+            document.getElementById('tradeModalTitle').innerText = `${trade.name} 회차 수정`;
+            document.getElementById('editTradeIndex').value = trade.id;
+            populateTradeSelect(trade.name);
+            renderPhasesInputs(trade.phases || []);
+            document.getElementById('tradeModal').classList.add('hidden'); // fix
+            document.getElementById('tradeModal').classList.remove('hidden');
+        }
+
+        function renderPhasesInputs(phasesList) {
+            const container = document.getElementById('phasesContainer');
+            container.innerHTML = '';
+            phasesList.forEach((phase, idx) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center space-x-2 bg-white p-2 rounded-xl border border-slate-200';
+                row.innerHTML = `<span class="text-[11px] font-bold text-blue-600 w-10">${idx+1}차</span><div class="grid grid-cols-2 gap-1 flex-1"><input type="date" value="${phase.start}" class="phase-start bg-slate-50 border rounded-lg px-2 py-1 text-[11px] font-mono"><input type="date" value="${phase.end}" class="phase-end bg-slate-50 border rounded-lg px-2 py-1 text-[11px] font-mono"></div><button type="button" onclick="this.closest('div').remove()" class="w-6 h-6 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center text-xs"><i class="fa-solid fa-trash-can text-[10px]"></i></button>`;
+                container.appendChild(row);
+            });
+        }
+
+        function addPhaseRow() {
+            const container = document.getElementById('phasesContainer');
+            const row = document.createElement('div');
+            row.className = 'flex items-center space-x-2 bg-white p-2 rounded-xl border border-slate-200';
+            row.innerHTML = `<span class="text-[11px] font-bold text-blue-600 w-10">회차</span><div class="grid grid-cols-2 gap-1 flex-1"><input type="date" value="${formatDate(TODAY)}" class="phase-start bg-slate-50 border rounded-lg px-2 py-1 text-[11px] font-mono"><input type="date" value="${formatDate(TODAY)}" class="phase-end bg-slate-50 border rounded-lg px-2 py-1 text-[11px] font-mono"></div><button type="button" onclick="this.closest('div').remove()" class="w-6 h-6 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center text-xs"><i class="fa-solid fa-trash-can text-[10px]"></i></button>`;
+            container.appendChild(row);
+        }
+
+        function closeTradeModal() { document.getElementById('tradeModal').classList.add('hidden'); }
+
+        function saveTradeInfo() {
+            const proj = getCurrentProject();
+            if (!proj) return;
+            const id = document.getElementById('editTradeIndex').value;
+            const name = document.getElementById('editTradeName').value;
+            let phases = [];
+            document.querySelectorAll('#phasesContainer > div').forEach(row => {
+                phases.push({ start: row.querySelector('.phase-start').value, end: row.querySelector('.phase-end').value });
+            });
+            if (!name) return alert("공종명을 입력해주세요.");
+
+            if (id) {
+                const trade = proj.trades.find(t => t.id == id);
+                if (trade) { trade.name = name; trade.phases = phases; }
+            } else {
+                const newId = proj.trades.length > 0 ? Math.max(...proj.trades.map(t => t.id)) + 1 : 1;
+                proj.trades.push({ id: newId, name, phases });
+            }
+            renderDetailAll();
+            closeTradeModal();
+        }
+    </script>
+</body>
+</html>
