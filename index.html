@@ -1,1176 +1,2101 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>멀티 현장 공정 관리 대시보드</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome CDN for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        body {
-            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', sans-serif;
-            background-color: #f8fafc;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>스마트 공정관리 통합 포털 & 3D 대시보드</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- PapaParse CSV 파서 CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              900: '#1e1b4b',
+            }
+          }
         }
-        .hide-scrollbar::-webkit-scrollbar {
-            height: 6px;
-            width: 6px;
-        }
-        .hide-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-    </style>
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap');
+    * { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; }
+    
+    /* 3D 카드 입체 효과 */
+    .perspective-1000 {
+      perspective: 1000px;
+    }
+    .card-3d {
+      transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+      transform-style: preserve-3d;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    }
+    .card-3d:hover {
+      transform: translateY(-4px) rotateX(1deg) rotateY(-1deg);
+      box-shadow: 0 18px 25px -10px rgba(79, 70, 229, 0.16), 0 10px 12px -6px rgba(0, 0, 0, 0.06);
+    }
+    
+    /* 현재 진행 단계 강조 펄스 효과 */
+    @keyframes activeStepGlow {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4), 0 10px 25px -5px rgba(99, 102, 241, 0.3);
+        transform: translateY(-2px);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.15), 0 16px 30px -5px rgba(99, 102, 241, 0.45);
+        transform: translateY(-5px) scale(1.02);
+      }
+    }
+    .active-step-card {
+      animation: activeStepGlow 2.8s infinite ease-in-out;
+    }
+
+    /* 스크롤바 커스텀 */
+    ::-webkit-scrollbar {
+      height: 7px;
+      width: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* 타임라인 바 호버 */
+    .gantt-bar {
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .gantt-bar:hover {
+      transform: scale(1.1);
+      z-index: 30;
+    }
+
+    /* 분할 공정 가이드 점선 트랙 */
+    .gantt-track-line {
+      background-image: repeating-linear-gradient(to right, #cbd5e1 0, #cbd5e1 6px, transparent 6px, transparent 12px);
+    }
+  </style>
 </head>
-<body class="bg-slate-100 flex justify-center items-center min-h-screen p-0 sm:p-4">
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-16">
 
-    <!-- 로딩 오버레이 -->
-    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white hidden">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-blue-500"></i>
-        <p class="text-sm font-bold">구글 스프레드시트와 통신 중...</p>
+  <!-- 상단 네비게이션 헤더 -->
+  <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div onclick="navigateToMain()" class="cursor-pointer w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white text-xl shadow-md shadow-indigo-200">
+          <i class="fa-solid fa-city"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 onclick="navigateToMain()" class="cursor-pointer text-base sm:text-xl font-black text-slate-900 tracking-tight hover:text-indigo-600 transition">스마트 공정관리 통합 포털</h1>
+            <span class="px-2 py-0.5 text-[10px] sm:text-xs font-bold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">실시간 연동형</span>
+          </div>
+          <p class="text-[11px] sm:text-xs text-slate-500 font-medium">다중 현장 실시간 기성고 & 공정 진도율 통합 관제</p>
+        </div>
+      </div>
+
+      <!-- 상단 컨트롤 버튼 그룹 -->
+      <div class="flex items-center flex-wrap gap-2 sm:gap-3">
+        <!-- 현재 화면이 상세 페이지일 때 나타나는 '← 현장 목록' 버튼 -->
+        <button id="btnBackToMain" onclick="navigateToMain()" class="hidden px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-2 border border-slate-300 active:scale-95 shadow-sm">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>전체 현장 목록</span>
+        </button>
+
+        <!-- 신규 현장 추가 버튼 (모달 호출) -->
+        <button onclick="openAddSiteModal()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md shadow-indigo-200 transition active:scale-95">
+          <i class="fa-solid fa-plus text-xs"></i>
+          <span>현장 추가</span>
+        </button>
+
+        <!-- 인쇄 / PDF 출력 버튼 -->
+        <button onclick="window.print()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm transition active:scale-95">
+          <i class="fa-solid fa-print"></i>
+          <span class="hidden sm:inline">인쇄</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 1. 메인 포털 뷰 (모든 현장 요약 비교 카드 그리드) -->
+  <main id="mainPortalView" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    
+    <!-- 포털 상단 브리핑 헤더 -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white p-6 rounded-3xl shadow-xl">
+      <div>
+        <span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-white/10 text-indigo-200 border border-white/20">PORTAL DASHBOARD</span>
+        <h2 class="text-xl sm:text-2xl font-black mt-2 tracking-tight">진행 중인 현장 공정 종합 현황</h2>
+        <p class="text-xs text-indigo-200 mt-1 font-medium">각 현장을 클릭하면 상세 3D 공정표와 일자별 간트차트로 즉시 이동합니다.</p>
+      </div>
+      <div class="flex items-center gap-2 self-start sm:self-auto">
+        <button onclick="syncAllSitesData()" class="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition flex items-center gap-2 border border-white/20 backdrop-blur-sm active:scale-95">
+          <i id="syncAllIcon" class="fa-solid fa-rotate"></i>
+          <span>전체 현장 최신 시트 동기화</span>
+        </button>
+      </div>
     </div>
 
-    <div class="w-full sm:max-w-md h-screen sm:h-[880px] bg-slate-50 shadow-2xl sm:rounded-[40px] flex flex-col overflow-hidden relative border-0 sm:border-8 sm:border-slate-800">
-
-        <!-- ================= MAIN DASHBOARD VIEW ================= -->
-        <div id="mainDashboardView" class="flex flex-col h-full">
-            <!-- Header -->
-            <header class="bg-white px-5 pt-5 pb-3 border-b border-slate-200 flex justify-between items-center z-10 shrink-0">
-                <div>
-                    <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">공정 통합 관리 시스템</span>
-                    <h1 class="text-lg font-extrabold text-slate-800 mt-1">전체 현장 대시보드</h1>
-                </div>
-                <button onclick="openNewProjectModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-2xl text-xs font-bold transition shadow-md shadow-blue-500/20 flex items-center space-x-1.5">
-                    <i class="fa-solid fa-plus text-[10px]"></i>
-                    <span>현장 추가</span>
-                </button>
-            </header>
-
-            <!-- Dashboard Content -->
-            <main class="flex-1 overflow-y-auto p-4 space-y-4">
-                <!-- Summary Widget -->
-                <div class="grid grid-cols-2 gap-3 shrink-0">
-                    <div class="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-4 rounded-3xl shadow-md">
-                        <span class="text-[11px] text-blue-100 block font-medium">진행 중인 현장</span>
-                        <span id="statActiveProjects" class="text-2xl font-black font-mono mt-1 block">0개</span>
-                    </div>
-                    <div class="bg-white p-4 rounded-3xl shadow-sm border border-slate-200/80">
-                        <span class="text-[11px] text-slate-400 block font-medium">완료된 현장 (아카이브)</span>
-                        <span id="statCompletedProjects" class="text-2xl font-black text-slate-700 font-mono mt-1 block">0개</span>
-                    </div>
-                </div>
-
-                <!-- Active Projects Section -->
-                <div>
-                    <div class="flex justify-between items-center mb-2 px-1">
-                        <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">진행 중인 현장 (마감 임박순)</h2>
-                    </div>
-                    <div id="activeProjectsList" class="space-y-3">
-                        <!-- Populated by JS -->
-                    </div>
-                </div>
-
-                <!-- Completed Projects Archive Section -->
-                <div class="pt-2">
-                    <div class="flex justify-between items-center mb-2 px-1">
-                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">완료된 공사 아카이브</h2>
-                    </div>
-                    <div id="completedProjectsList" class="space-y-3">
-                        <!-- Populated by JS -->
-                    </div>
-                </div>
-            </main>
-
-            <!-- Bottom Nav -->
-            <nav class="bg-white border-t border-slate-200 px-6 py-3 flex justify-around items-center shrink-0">
-                <button class="flex flex-col items-center text-blue-600">
-                    <i class="fa-solid fa-building text-base"></i>
-                    <span class="text-[10px] mt-1 font-semibold">전체현장</span>
-                </button>
-                <button onclick="openNewProjectModal()" class="flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
-                    <i class="fa-solid fa-circle-plus text-base"></i>
-                    <span class="text-[10px] mt-1 font-medium">현장등록</span>
-                </button>
-            </nav>
-        </div>
-
-        <!-- ================= DETAIL PROJECT VIEW ================= -->
-        <div id="detailProjectView" class="flex flex-col h-full hidden">
-            <!-- Header -->
-            <header class="bg-white px-5 pt-4 pb-3 border-b border-slate-200 flex justify-between items-center z-10 shrink-0">
-                <div class="flex items-center space-x-2.5">
-                    <button onclick="backToDashboard()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
-                        <i class="fa-solid fa-arrow-left text-xs"></i>
-                    </button>
-                    <div>
-                        <span id="headerCompanyName" class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">업체명</span>
-                        <h1 id="headerProjectName" class="text-base font-extrabold text-slate-800 mt-0.5 truncate max-w-[180px]">현장명</h1>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-1.5">
-                    <button onclick="openProjectEditModal()" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition flex items-center space-x-1">
-                        <i class="fa-solid fa-pen text-[10px]"></i>
-                        <span>수정</span>
-                    </button>
-                </div>
-            </header>
-
-            <!-- Main Detail Scrollable Area -->
-            <main class="flex-1 overflow-y-auto p-4 space-y-4">
-
-                <!-- Overall Progress Card -->
-                <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-lg relative overflow-hidden shrink-0">
-                    <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
-                    
-                    <div class="flex justify-between items-center mb-3">
-                        <div>
-                            <span class="text-[11px] text-slate-400 block">현장 담당자</span>
-                            <span id="displayManager" class="text-sm font-semibold text-slate-200">-</span>
-                        </div>
-                        <div class="text-right">
-                            <span class="text-[11px] text-slate-400 block">공사 기간 및 D-Day</span>
-                            <span id="displayPeriod" class="text-xs bg-slate-800/80 px-2.5 py-1 rounded-lg text-blue-400 font-mono font-medium border border-slate-700/50 block mt-0.5">-</span>
-                        </div>
-                    </div>
-
-                    <!-- Today's & Tomorrow's Active Tasks Summary Bar -->
-                    <div class="bg-blue-900/40 border border-blue-500/30 rounded-2xl p-3 mb-3 space-y-2">
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-[11px] font-bold text-blue-300"><i class="fa-solid fa-calendar-day mr-1"></i>금일 진행 공정 (Today)</span>
-                            </div>
-                            <div id="todayTaskList" class="text-xs text-white font-medium flex flex-wrap gap-1.5">
-                                <!-- Populated dynamically -->
-                            </div>
-                        </div>
-                        <div class="pt-2 border-t border-blue-500/20">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-[11px] font-bold text-indigo-300"><i class="fa-solid fa-calendar-plus mr-1"></i>명일 진행 예정 공정 (Tomorrow)</span>
-                            </div>
-                            <div id="tomorrowTaskList" class="text-xs text-white font-medium flex flex-wrap gap-1.5">
-                                <!-- Populated dynamically -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="pt-2 border-t border-slate-700/60 mt-2">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-xs text-slate-300 font-medium">전체 종합 공정률 (자동 계산)</span>
-                            <span id="overallProgressText" class="text-base font-black text-blue-400 font-mono">0%</span>
-                        </div>
-                        <div class="w-full bg-slate-700/80 h-3 rounded-full overflow-hidden p-0.5">
-                            <div id="overallProgressBar" class="bg-gradient-to-r from-blue-500 to-cyan-400 h-full rounded-full transition-all duration-500" style="width: 0%;"></div>
-                        </div>
-                    </div>
-
-                    <!-- Status Count Cards -->
-                    <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-700/60">
-                        <div onclick="openStatusDetailModal('완료공정')" class="bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 p-2.5 rounded-2xl text-center cursor-pointer transition active:scale-95 group">
-                            <span class="text-[10px] text-emerald-400 font-bold block mb-0.5 group-hover:underline">완료공정 <i class="fa-solid fa-chevron-right text-[8px]"></i></span>
-                            <span id="statCompletedCount" class="text-sm font-black text-white font-mono">0건</span>
-                        </div>
-                        <div onclick="openStatusDetailModal('진행중')" class="bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 p-2.5 rounded-2xl text-center cursor-pointer transition active:scale-95 group">
-                            <span class="text-[10px] text-blue-400 font-bold block mb-0.5 group-hover:underline">진행중 <i class="fa-solid fa-chevron-right text-[8px]"></i></span>
-                            <span id="statInProgressCount" class="text-sm font-black text-white font-mono">0건</span>
-                        </div>
-                        <div onclick="openStatusDetailModal('진행예정')" class="bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 p-2.5 rounded-2xl text-center cursor-pointer transition active:scale-95 group">
-                            <span class="text-[10px] text-amber-400 font-bold block mb-0.5 group-hover:underline">진행예정 <i class="fa-solid fa-chevron-right text-[8px]"></i></span>
-                            <span id="statUpcomingCount" class="text-sm font-black text-white font-mono">0건</span>
-                        </div>
-                    </div>
-
-                    <!-- Issue Report Section in Detail View -->
-                    <div class="pt-3 mt-3 border-t border-slate-700/60">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-[11px] text-amber-400 font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>특이사항 및 이슈 보고</span>
-                            <button onclick="openIssueEditModal()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded-lg transition">편집</button>
-                        </div>
-                        <p id="displayIssue" class="text-xs text-slate-300 bg-slate-800/60 p-2.5 rounded-xl font-sans">등록된 특이사항이 없습니다.</p>
-                    </div>
-                </div>
-
-                <!-- Interactive Timeline Section -->
-                <div class="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 shrink-0">
-                    <div class="flex justify-between items-center mb-2">
-                        <div>
-                            <h2 class="text-sm font-bold text-slate-800">공종별 멀티 회차 타임라인</h2>
-                            <p class="text-[11px] text-slate-400">날짜 바를 움직여 원하는 날짜 선택 <span class="text-blue-600 font-bold">(Today: <span id="todayDisplayStr">2026-09-01</span>)</span></p>
-                        </div>
-                        <button onclick="resetSelectedDate()" class="text-xs text-blue-600 font-semibold bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-xl transition">
-                            오늘로 이동
-                        </button>
-                    </div>
-
-                    <!-- Date Scroller / Slider Bar -->
-                    <div class="mb-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-[11px] font-bold text-slate-700">선택 날짜: <span id="selectedDateDisplay" class="text-blue-600 font-mono font-black">2026-09-01</span></span>
-                            <button onclick="openDateInfoModal()" class="px-2.5 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-lg shadow-sm hover:bg-blue-700 transition">
-                                <i class="fa-solid fa-list-check mr-1"></i>해당 날짜 공사 조회
-                            </button>
-                        </div>
-                        <input type="range" id="timelineDateSlider" min="0" max="90" value="0" oninput="onTimelineSliderChange(this.value)" class="w-full accent-blue-600 cursor-pointer h-2 bg-slate-200 rounded-lg">
-                    </div>
-
-                    <!-- Split Layout -->
-                    <div class="flex border border-slate-200/60 rounded-2xl overflow-hidden bg-slate-50/50">
-                        <div id="stickyNamesContainer" class="w-32 bg-white border-r border-slate-200 z-10 shrink-0 select-none shadow-sm">
-                            <div class="text-[10px] text-slate-400 font-bold px-3 py-2 border-b border-slate-100 bg-slate-50">공종명</div>
-                            <div id="timelineNamesList" class="space-y-3 py-2 text-xs"></div>
-                        </div>
-                        <div id="timelineScrollContainer" class="flex-1 overflow-x-auto pb-3 pt-1 hide-scrollbar">
-                            <div class="min-w-[800px] relative px-2">
-                                <div class="grid grid-cols-5 text-[10px] text-slate-400 text-center mb-2 font-mono border-b border-slate-100 pb-1">
-                                    <span>시작일</span>
-                                    <span>중간점</span>
-                                    <span>오늘</span>
-                                    <span>후반부</span>
-                                    <span>종료일</span>
-                                </div>
-                                <div id="timelineRows" class="space-y-3 text-xs pt-2"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex justify-between items-center pt-1 px-1">
-                    <div>
-                        <h2 class="text-sm font-bold text-slate-800">공종별 공정 관리 (Multi-Phase)</h2>
-                        <p class="text-[11px] text-slate-400">카드를 터치하여 다중 회차 기간을 추가·수정하세요</p>
-                    </div>
-                    <button onclick="openAddTradeModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-md shadow-blue-500/20 flex items-center space-x-1">
-                        <i class="fa-solid fa-plus text-[10px]"></i>
-                        <span>공종 추가</span>
-                    </button>
-                </div>
-
-                <div class="space-y-3 pb-6" id="tradeListContainer"></div>
-            </main>
-
-            <!-- Bottom Navigation -->
-            <nav class="bg-white border-t border-slate-200 px-6 py-3 flex justify-around items-center shrink-0">
-                <button onclick="backToDashboard()" class="flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
-                    <i class="fa-solid fa-building text-base"></i>
-                    <span class="text-[10px] mt-1 font-medium">전체현장</span>
-                </button>
-                <button onclick="openProjectEditModal()" class="flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
-                    <i class="fa-solid fa-gear text-base"></i>
-                    <span class="text-[10px] mt-1 font-medium">현장설정</span>
-                </button>
-            </nav>
-        </div>
-
-        <!-- ================= MODALS ================= -->
-        <!-- Project Info Edit Modal -->
-        <div id="projectModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-            <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl transform transition-all">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-base font-bold text-slate-800" id="projectModalTitle">현장 정보 변경</h3>
-                    <button onclick="closeProjectEditModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-                <div class="space-y-3 text-left">
-                    <div>
-                        <label class="text-xs text-slate-500 font-medium block mb-1">현장명</label>
-                        <input type="text" id="inputProjectName" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="text-xs text-slate-500 font-medium block mb-1">고객명 / 업체명</label>
-                        <input type="text" id="inputClientName" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="text-xs text-slate-500 font-medium block mb-1">전체 시작일</label>
-                            <input type="date" id="inputStartDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 font-mono">
-                        </div>
-                        <div>
-                            <label class="text-xs text-slate-500 font-medium block mb-1">전체 종료일</label>
-                            <input type="date" id="inputEndDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 font-mono">
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-6 flex space-x-2">
-                    <button onclick="closeProjectEditModal()" class="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">취소</button>
-                    <button onclick="saveProjectInfo()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">저장하기</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Issue Edit Modal -->
-        <div id="issueModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-            <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl transform transition-all">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-base font-bold text-slate-800">특이사항 및 이슈 편집</h3>
-                    <button onclick="closeIssueEditModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-                <div class="space-y-3 text-left">
-                    <div>
-                        <label class="text-xs text-slate-500 font-medium block mb-1">이슈 내용</label>
-                        <textarea id="inputIssueText" rows="4" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 resize-none" placeholder="특이사항을 입력하세요..."></textarea>
-                    </div>
-                </div>
-                <div class="mt-6 flex space-x-2">
-                    <button onclick="closeIssueEditModal()" class="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">취소</button>
-                    <button onclick="saveIssueInfo()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">저장</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Trade Info Edit Modal -->
-        <div id="tradeModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-            <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl transform transition-all max-h-[90vh] flex flex-col">
-                <div class="flex justify-between items-center mb-3 shrink-0">
-                    <h3 id="tradeModalTitle" class="text-base font-bold text-slate-800">공종 정보 및 회차 관리</h3>
-                    <button onclick="closeTradeModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-                <input type="hidden" id="editTradeIndex">
-                
-                <div class="space-y-4 text-left overflow-y-auto pr-1 flex-1">
-                    <div>
-                        <label class="text-xs text-slate-500 font-medium block mb-1">공종명 선택</label>
-                        <select id="editTradeSelect" onchange="onTradeSelectChange(this.value)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 mb-2">
-                        </select>
-                        <input type="text" id="editTradeName" placeholder="직접 공종명을 입력하세요" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 hidden">
-                    </div>
-
-                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                        <div class="flex justify-between items-center mb-2">
-                            <div>
-                                <label class="text-xs font-bold text-slate-700 block">공사 기간 회차 관리</label>
-                                <span class="text-[10px] text-slate-400">상태 및 진행률이 자동 계산됩니다.</span>
-                            </div>
-                            <button type="button" onclick="addPhaseRow()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition shrink-0">
-                                <i class="fa-solid fa-plus mr-1"></i>기간 추가
-                            </button>
-                        </div>
-                        <div id="phasesContainer" class="space-y-2"></div>
-                    </div>
-                </div>
-
-                <div class="mt-4 flex space-x-2 shrink-0 pt-2 border-t border-slate-100">
-                    <button onclick="closeTradeModal()" class="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">취소</button>
-                    <button onclick="saveTradeInfo()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">저장</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Date Inquiry Modal -->
-        <div id="dateInfoModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-            <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl transform transition-all max-h-[85vh] flex flex-col">
-                <div class="flex justify-between items-center mb-3 shrink-0">
-                    <div>
-                        <span class="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full">날짜별 공정 조회</span>
-                        <h3 id="modalInquiryDateTitle" class="text-base font-extrabold text-slate-800 mt-0.5">2026-09-01</h3>
-                    </div>
-                    <button onclick="closeDateInfoModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-                <div id="dateInquiryList" class="space-y-2.5 overflow-y-auto pr-1 flex-1 py-1"></div>
-                <div class="mt-4 pt-3 border-t border-slate-100 shrink-0">
-                    <button onclick="closeDateInfoModal()" class="w-full bg-slate-100 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">닫기</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Status Detail Modal -->
-        <div id="statusDetailModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-            <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl transform transition-all max-h-[85vh] flex flex-col">
-                <div class="flex justify-between items-center mb-3 shrink-0">
-                    <div>
-                        <span id="statusModalBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full">상태별 공정</span>
-                        <h3 id="statusModalTitle" class="text-base font-extrabold text-slate-800 mt-0.5">공정 상세 리스트</h3>
-                    </div>
-                    <button onclick="closeStatusDetailModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-                <div id="statusModalList" class="space-y-2.5 overflow-y-auto pr-1 flex-1 py-1"></div>
-                <div class="mt-4 pt-3 border-t border-slate-100 shrink-0">
-                    <button onclick="closeStatusDetailModal()" class="w-full bg-slate-100 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition">닫기</button>
-                </div>
-            </div>
-        </div>
+    <!-- 통계 요약 위젯 -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+        <div class="text-[11px] text-slate-500 font-bold">관리 중인 현장</div>
+        <div class="text-xl sm:text-2xl font-black text-slate-900 mt-1" id="portalTotalSitesCount">3개 현장</div>
+      </div>
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+        <div class="text-[11px] text-emerald-600 font-bold">공기준수 / 단축 현장</div>
+        <div class="text-xl sm:text-2xl font-black text-emerald-600 mt-1" id="portalOnScheduleCount">-</div>
+      </div>
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+        <div class="text-[11px] text-rose-500 font-bold">집중 관리 (공기 지연)</div>
+        <div class="text-xl sm:text-2xl font-black text-rose-600 mt-1" id="portalDelayedCount">-</div>
+      </div>
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+        <div class="text-[11px] text-indigo-600 font-bold">전체 평균 실 기성률</div>
+        <div class="text-xl sm:text-2xl font-black text-indigo-600 mt-1" id="portalAvgProgress">-%</div>
+      </div>
     </div>
 
-    <script>
-        // 사용자가 배포한 실제 구글 Apps Script 웹 앱 URL
-        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwzzlMCdkoYAgBPgckHOIK6Pv1W6uPMc3a-JMW4QgIwtIhW-BQURE5HGunjPHvhM15w/exec";
+    <!-- 현장 목록 카드 그리드 컨테이너 -->
+    <section>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+          <span>현장별 공정표 목록</span>
+          <span class="text-xs text-slate-400 font-medium">(준공 마감일 빠른 순서 자동 정렬)</span>
+        </h3>
+      </div>
+      <div id="sitesGridContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+        <!-- 자바스크립트로 동적 렌더링 -->
+      </div>
+    </section>
 
-        const TODAY = new Date(); // 오늘 날짜 기준 실시간 연동
-        const TOMORROW = new Date(TODAY);
-        TOMORROW.setDate(TODAY.getDate() + 1);
+  </main>
 
-        let selectedDate = new Date(TODAY);
-        let projects = [];
-        let currentProjectId = null;
-        let isCreatingNewProject = false;
+  <!-- 2. 개별 현장 상세 대시보드 뷰 (기존 메인 컨텐츠 영역) -->
+  <main id="singleSiteDetailView" class="hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+    
+    <!-- 상세 화면 상단 현장 타이틀 바 -->
+    <div class="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200" id="detailSiteStatusBadge">공사 진행중</span>
+          <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight" id="detailSiteTitle">무학동 고시원 공사예정표</h2>
+        </div>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1 font-medium" id="detailSitePeriod">시공: 더블유디에이치 주식회사 | 전체 공기: 2026-08-06 ~ 2026-10-26</p>
+      </div>
 
-        const PREDEFINED_TRADES = [
-            "가설공사", "철거공사", "방수공사", "습식공사", "목공사", 
-            "단열공사", "전기통신공사", "소방공사", "위생급수공사", "난방공사", 
-            "보일러공사", "공조설비공사", "에어컨공사", "가스설비공사", "창호공사", 
-            "타일공사", "도장공사", "필름공사", "도배공사", "가구공사", "사인공사", "기타마감"
-        ];
+      <!-- 상세 화면 상단 핵심 지표 요약 위젯 -->
+      <div class="flex items-center flex-wrap gap-2 sm:gap-3">
+        <!-- 준공 마감일 박스 -->
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900 text-white shadow-md border border-slate-700">
+          <div class="w-8 h-8 rounded-xl bg-indigo-500/30 border border-indigo-400/40 flex items-center justify-center text-indigo-300 text-xs">
+            <i class="fa-solid fa-flag-checkered"></i>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-300 font-semibold flex items-center gap-1">
+              준공 마감일 <span id="topDdayBadge" class="px-1.5 py-0.2 rounded bg-rose-500 text-white font-extrabold text-[10px]">D-51</span>
+            </div>
+            <div class="text-xs sm:text-sm font-black tracking-tight text-white" id="topEndDateText">2026-10-26</div>
+          </div>
+        </div>
 
-        window.onload = function() {
-            const todayStr = formatDate(TODAY);
-            document.getElementById('todayDisplayStr').innerText = todayStr;
-            loadDataFromSheets();
+        <!-- 실 기성 공정률 & 신호등 -->
+        <div class="flex items-center gap-2.5 px-3.5 py-1.5 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 shadow-sm">
+          <div>
+            <div class="text-[10px] text-indigo-700 font-bold uppercase tracking-wider flex items-center gap-1">
+              <i class="fa-solid fa-chart-line text-[10px]"></i> 실 기성 공정률
+            </div>
+            <div class="text-base sm:text-lg font-black text-indigo-900 leading-tight">
+              <span id="topProgressRate">18.4%</span>
+            </div>
+          </div>
+          <div id="trafficLightBadge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-black text-xs shadow-sm bg-blue-100 text-blue-800 border border-blue-300">
+            <span id="trafficLightDot" class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
+            <span id="trafficLightText">공기준수</span>
+          </div>
+        </div>
+
+        <!-- 오늘 날짜 피커 및 날씨 -->
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/90 border border-slate-200 text-xs text-slate-700">
+          <div class="flex items-center gap-1.5 font-bold text-slate-800">
+            <i class="fa-regular fa-calendar-days text-indigo-600"></i>
+            <span id="headerTodayDate">2026년 9월 6일 (일)</span>
+          </div>
+          <input type="date" id="dateSelectorInput" min="2026-07-01" max="2026-12-31" 
+                 onchange="onDateSelectorChange(this.value)"
+                 class="px-1.5 py-0.5 rounded-lg border border-slate-300 bg-white text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                 title="기준 날짜 변경 시 금일/명일 및 기준선이 함께 이동합니다">
+          <span class="text-slate-300">|</span>
+          <div class="flex items-center gap-1.5" id="weatherWidget">
+            <i id="weatherIcon" class="fa-solid fa-cloud-sun text-amber-500 text-sm animate-pulse"></i>
+            <span id="weatherText" class="font-semibold">서울 24°C 맑음</span>
+          </div>
+        </div>
+
+        <!-- 새로고침 버튼 -->
+        <button onclick="refreshCurrentSiteData()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition active:scale-95" title="구글 시트 최신 일정 다시 동기화">
+          <i id="refreshIcon" class="fa-solid fa-rotate"></i>
+          <span class="hidden sm:inline">동기화</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI 요약 지표 섹션 -->
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      
+      <!-- 공사 일정 진도 분석 카드 -->
+      <div class="card-3d bg-white p-5 rounded-2xl border border-slate-100 relative overflow-hidden flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-indigo-600 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-hourglass-half"></i> 공사 일정 진도 분석
+            </span>
+            <button onclick="openWeightModal()" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md transition flex items-center gap-1">
+              <i class="fa-solid fa-calculator text-[9px]"></i> 가중치 분석
+            </button>
+          </div>
+          <div class="text-2xl sm:text-3xl font-black text-slate-900 flex items-baseline justify-between">
+            <span id="kpiRemainingDays">D-51</span>
+            <span id="kpiTrafficLightMini" class="text-xs font-black px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700 border border-blue-300 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-blue-600"></span> 공기준수 (0.0%)
+            </span>
+          </div>
+
+          <!-- 듀얼 프로그레스 바 (계획 진도율 vs 가중치 실 기성 공정률) -->
+          <div class="space-y-1.5 mt-3">
+            <div>
+              <div class="flex justify-between text-[11px] text-slate-500 font-medium">
+                <span>계획 진도율 (가중치 기준)</span>
+                <span class="font-bold text-slate-700" id="labelPlanProgress">18.4%</span>
+              </div>
+              <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden ring-1 ring-slate-200/60">
+                <div id="barPlanProgress" class="bg-slate-400 h-full rounded-full transition-all duration-700" style="width: 18.4%;"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] text-indigo-600 font-semibold">
+                <span>실제 기성 공정률 (가중치 100%)</span>
+                <span class="font-extrabold text-indigo-700" id="labelActualProgress">18.4%</span>
+              </div>
+              <div class="w-full bg-indigo-50 h-2.5 rounded-full overflow-hidden ring-1 ring-indigo-200">
+                <div id="kpiProgressBar" class="bg-gradient-to-r from-indigo-500 to-violet-600 h-full rounded-full transition-all duration-700" style="width: 18.4%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100 flex justify-between font-medium">
+          <span id="kpiElapsedDaysText">31일 경과</span>
+          <span class="font-bold text-slate-700" id="progressDiffDetail">공정차: ±0.0%</span>
+          <span id="kpiEndDateSummary">준공: 10.26</span>
+        </div>
+      </div>
+
+      <!-- 세부 공정 이벤트 3단 카운트 카드 -->
+      <div class="card-3d bg-white p-5 rounded-2xl border border-slate-100 relative overflow-hidden flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-slate-600 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-layer-group"></i> 세부 공정 이벤트
+            </span>
+            <span class="text-[10px] text-slate-400 font-medium">클릭 시 목록 나열</span>
+          </div>
+          
+          <div class="grid grid-cols-3 gap-2 mt-2">
+            <button onclick="openTaskListModal('completed')" class="group p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 transition text-left">
+              <div class="text-[11px] font-bold text-emerald-700 flex items-center justify-between">
+                <span>완료</span>
+                <i class="fa-solid fa-check text-[10px] opacity-70 group-hover:scale-125 transition"></i>
+              </div>
+              <div class="text-lg font-black text-emerald-800 mt-1" id="countCompleted">0</div>
+            </button>
+
+            <button onclick="openTaskListModal('ongoing')" class="group p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 transition text-left ring-2 ring-indigo-500/20">
+              <div class="text-[11px] font-bold text-indigo-700 flex items-center justify-between">
+                <span>진행중</span>
+                <span class="w-2 h-2 rounded-full bg-indigo-600 animate-ping"></span>
+              </div>
+              <div class="text-lg font-black text-indigo-800 mt-1" id="countOngoing">0</div>
+            </button>
+
+            <button onclick="openTaskListModal('upcoming')" class="group p-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200/80 transition text-left">
+              <div class="text-[11px] font-bold text-amber-700 flex items-center justify-between">
+                <span>준비중</span>
+                <i class="fa-solid fa-clock text-[10px] opacity-70 group-hover:scale-125 transition"></i>
+              </div>
+              <div class="text-lg font-black text-amber-800 mt-1" id="countUpcoming">0</div>
+            </button>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-3 font-medium text-center">각 항목을 누르면 해당 공정 목록이 펼쳐집니다</p>
+      </div>
+
+      <!-- 금일 주요 작업 카드 -->
+      <div class="card-3d bg-gradient-to-br from-indigo-600 to-violet-700 text-white p-5 rounded-2xl shadow-xl shadow-indigo-100 relative overflow-hidden flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-indigo-200 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-calendar-check"></i> <span id="todayCardLabel">금일 주요 작업</span>
+            </span>
+            <span class="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold">당일 집중</span>
+          </div>
+          <div class="text-lg sm:text-xl font-black mt-1 tracking-tight line-clamp-2" id="todayTaskTitle">작업 내용 조회중...</div>
+          <div class="text-xs text-indigo-100 mt-1 font-medium leading-snug truncate" id="todayTaskDesc">
+            현장 작업 체크포인트 확인
+          </div>
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-indigo-400/40 flex items-center justify-between text-xs text-indigo-100">
+          <span>현장 안전 관리</span>
+          <span class="font-bold bg-white/20 px-2 py-0.5 rounded" id="todayTaskTag">작업 확인</span>
+        </div>
+      </div>
+
+      <!-- 명일 주요 작업 카드 -->
+      <div class="card-3d bg-white p-5 rounded-2xl border border-slate-100 relative overflow-hidden flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-slate-700 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-calendar-plus text-amber-500"></i> <span id="tomorrowCardLabel">명일 및 차주 착수</span>
+            </span>
+            <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">내일 작업</span>
+          </div>
+          <div class="text-lg sm:text-xl font-black text-slate-900 mt-1 tracking-tight line-clamp-2" id="tomorrowTaskTitle">명일 작업 조회중...</div>
+          <div class="text-xs text-slate-600 mt-1 font-medium leading-snug truncate" id="tomorrowTaskDesc">
+            착수 공정 자재 확인
+          </div>
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <span>집중 공정 예고</span>
+          <span class="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded" id="tomorrowTaskTag">핵심 착수</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 7단계 공정 진행 단계 타임라인 -->
+    <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+        <div>
+          <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md tracking-wide">PHASE ROADMAP</span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">7단계 공정 진행 단계 타임라인</h2>
+        </div>
+        <p class="text-xs sm:text-sm text-slate-500">현재 공정이 진행 중인 단계를 반짝임과 함께 직관적으로 강조합니다.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4 relative" id="roadmapStepGrid">
+        <div id="stepCard1" class="card-3d bg-slate-50 p-4 rounded-2xl border-t-4 border-indigo-600 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-extrabold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">STEP 01</span>
+              <span class="step-ping hidden w-2.5 h-2.5 rounded-full bg-indigo-600 animate-ping"></span>
+            </div>
+            <h3 class="font-extrabold text-indigo-950 text-sm mt-2">철거 & 가설</h3>
+            <p class="text-xs text-indigo-600 font-bold mt-1">-</p>
+            <ul class="text-xs text-slate-700 space-y-1 mt-2.5">
+              <li>• 먹메김 및 현장정리</li>
+              <li>• 창문 벽체 철거</li>
+              <li>• 스카이 장비 투입</li>
+            </ul>
+          </div>
+          <div class="step-footer mt-4 flex items-center justify-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-200/60 py-1 rounded-lg">
+            <span>준비중</span>
+          </div>
+        </div>
+
+        <div id="stepCard2" class="card-3d bg-slate-50 p-4 rounded-2xl border-t-4 border-emerald-500 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">STEP 02</span>
+              <span class="step-ping hidden w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping"></span>
+            </div>
+            <h3 class="font-bold text-slate-900 text-sm mt-2">1차 천정배관·기초설비</h3>
+            <p class="text-xs text-slate-500 font-medium mt-1">-</p>
+            <ul class="text-xs text-slate-600 space-y-1 mt-2.5">
+              <li>• 바닥 모서리 1차 방수</li>
+              <li>• 천정 전열/통신 1차 배관</li>
+              <li>• 덕트 & 에어컨 선배관</li>
+            </ul>
+          </div>
+          <div class="step-footer mt-4 flex items-center justify-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-200/60 py-1 rounded-lg">
+            <span>준비중</span>
+          </div>
+        </div>
+
+        <div id="stepCard3" class="card-3d bg-slate-50 p-4 rounded-2xl border-t-4 border-amber-500 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-extrabold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded">STEP 03</span>
+              <span class="step-ping hidden w-2.5 h-2.5 rounded-full bg-amber-600 animate-ping"></span>
+            </div>
+            <h3 class="font-extrabold text-slate-900 text-sm mt-2">ALC & 본배관(급수/난방)</h3>
+            <p class="text-xs text-amber-700 font-bold mt-1">-</p>
+            <ul class="text-xs text-slate-700 space-y-1 mt-2.5">
+              <li>• ALC 블록 자재양중</li>
+              <li>• 급수/급탕 & 오하수 배관</li>
+              <li>• 바닥 몰탈 타설(매립)</li>
+            </ul>
+          </div>
+          <div class="step-footer mt-4 flex items-center justify-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-200/60 py-1 rounded-lg">
+            <span>준비중</span>
+          </div>
+        </div>
+
+        <div id="stepCard4" class="card-3d bg-slate-50 p-4 rounded-2xl border-t-4 border-cyan-500 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded">STEP 04</span>
+              <span class="step-ping hidden w-2.5 h-2.5 rounded-full bg-cyan-600 animate-ping"></span>
+            </div>
+            <h3 class="font-bold text-slate-900 text-sm mt-2">목공 & 3차방수</h3>
+            <p class="text-xs text-slate-500 font-medium mt-1">-</p>
+            <ul class="text-xs text-slate-600 space-y-1 mt-2.5">
+              <li>• 몰탈 양생</li>
+              <li>• 석고보드 취부 및 천정</li>
+              <li>• 화장실 3차 도막방수</li>
+            </ul>
+          </div>
+          <div class="step-footer mt-4 flex items-center justify-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-200/60 py-1 rounded-lg">
+            <span>준비중</span>
+          </div>
+        </div>
+
+        <div id="stepCard5" class="card-3d bg-slate-50 p-4 rounded-2xl border-t-4 border-teal-500 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded">STEP 05</span>
+              <span class="step-ping hidden w-2.5 h-2.5 rounded-full bg-teal-600 animate-ping"></span>
+            </div>
+            <h3 class="font-bold text-slate-900 text-sm mt-2">타일·도장·도배</h3>
+            <p class="text-xs text-slate-500 font-medium mt-1">-</p>
+            <ul class="text-xs text-slate-600 space-y-1 mt-2.5">
+              <li>• 화장실/복도 타일시공</li>
+              <li>• 복도 퍼티 & 도장뿜칠</li>
+              <li>• 인테리어필름 & 도배</li>
+            </ul>
+          </div>
+          <div class="step-footer mt-4 flex items-center justify-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-200/60 py-1 rounded-lg">
+            <span>준비중</span>
+          </div>
+        </div>
+
+        <div id="stepCard6" class="card-3d bg-slate-50 p-4 rounded-2xl border-t-4 border-purple-500 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">STEP 06</span>
+              <span class="step-ping hidden w-2.5 h-2.5 rounded-full bg-purple-600 animate-ping"></span>
+            </div>
+            <h3 class="font-bold text-slate-900 text-sm mt-2">가구 & 기구취부</h3>
+            <p class="text-xs text-slate-500 font-medium mt-1">-</p>
+            <ul class="text-xs text-slate-600 space-y-1 mt-2.5">
+              <li>• 위생기구 & 보일러 설치</li>
+              <li>• 바닥마감재 & 객실가구</li>
+              <li>• 조명/도어락/가전제품</li>
+            </ul>
+          </div>
+          <div class="step-footer mt-4 flex items-center justify-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-200/60 py-1 rounded-lg">
+            <span>준비중</span>
+          </div>
+        </div>
+
+        <div id="stepCard7" class="card-3d bg-slate-50 p-4 rounded-2xl border-t-4 border-blue-600 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">STEP 07</span>
+              <span class="step-ping hidden w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping"></span>
+            </div>
+            <h3 class="font-bold text-slate-900 text-sm mt-2">검사 & 준공청소</h3>
+            <p class="text-xs text-slate-500 font-medium mt-1">-</p>
+            <ul class="text-xs text-slate-600 space-y-1 mt-2.5">
+              <li>• 소방안전점검 서류 접수</li>
+              <li>• 전기안전점검 실시</li>
+              <li>• 최종 준공청소 및 인도</li>
+            </ul>
+          </div>
+          <div class="step-footer mt-4 flex items-center justify-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-200/60 py-1 rounded-lg">
+            <span>최종 검수</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 인터랙티브 공정 간트차트 -->
+    <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+        <div>
+          <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md tracking-wide">INTERACTIVE SCHEDULE</span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">전체 세부 공정 타임라인</h2>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="text" id="taskSearch" placeholder="공종/세부작업 검색..." onkeyup="filterTasks()" 
+                   class="pl-8 pr-3 py-1.5 text-xs bg-slate-100 rounded-xl border border-transparent focus:border-indigo-500 focus:bg-white focus:outline-none transition w-44 sm:w-56">
+          </div>
+          
+          <button onclick="setCategoryFilter('all')" class="cat-filter-btn px-3 py-1.5 text-xs rounded-xl font-bold bg-indigo-600 text-white transition shadow-sm" data-cat="all">전체보기</button>
+          <button onclick="setCategoryFilter('인테리어')" class="cat-filter-btn px-3 py-1.5 text-xs rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition" data-cat="인테리어">건축·마감</button>
+          <button onclick="setCategoryFilter('전기')" class="cat-filter-btn px-3 py-1.5 text-xs rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition" data-cat="전기">전기·소방</button>
+          <button onclick="setCategoryFilter('기계')" class="cat-filter-btn px-3 py-1.5 text-xs rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition" data-cat="기계">설비·난방</button>
+          <button onclick="setCategoryFilter('공통')" class="cat-filter-btn px-3 py-1.5 text-xs rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition" data-cat="공통">공통·점검</button>
+        </div>
+      </div>
+
+      <!-- 공정표 메인 테이블/간트 뷰 -->
+      <div class="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-inner">
+        <div class="min-w-[980px]">
+          <!-- 동적 헤더 월/주간 표시 -->
+          <div id="ganttHeaderMonths" class="grid grid-cols-12 bg-slate-100 border-b border-slate-200 text-center font-bold text-xs py-2.5 text-slate-600">
+            <div class="col-span-3 text-left pl-4">대공종 / 세부 공정 내용</div>
+            <div class="col-span-3 border-l border-slate-200 bg-rose-50/60 text-rose-700" id="ganttMonthLabel1">8월</div>
+            <div class="col-span-3 border-l border-slate-200 bg-amber-50/60 text-amber-700" id="ganttMonthLabel2">9월</div>
+            <div class="col-span-3 border-l border-slate-200 bg-indigo-50/60 text-indigo-700" id="ganttMonthLabel3">10월</div>
+          </div>
+
+          <!-- 공정 항목 목록 컨테이너 -->
+          <div id="scheduleContainer" class="divide-y divide-slate-100 text-xs">
+            <!-- 자바스크립트로 동적 렌더링 -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 월별 캘린더 모아보기 -->
+    <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm">
+      <div class="flex items-center justify-between mb-6 flex-wrap gap-2">
+        <div>
+          <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md tracking-wide">CALENDAR VIEW</span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">월별 주요 작업 캘린더</h2>
+        </div>
+        <div class="flex items-center gap-2" id="calendarMonthButtons">
+          <!-- 동적으로 생성되는 월 선택 버튼 -->
+        </div>
+      </div>
+
+      <div id="calendarViewContainer" class="border border-slate-200 rounded-2xl overflow-hidden">
+        <!-- 캘린더 내용 동적 생성 -->
+      </div>
+    </section>
+
+    <!-- 구글 시트 원본 링크 안내 바 -->
+    <div class="bg-slate-100/80 border border-slate-200 rounded-2xl p-4 flex items-center justify-between text-xs">
+      <div class="flex items-center gap-2 text-slate-600 font-medium">
+        <i class="fa-brands fa-google text-emerald-600 text-sm"></i>
+        <span>이 현장의 데이터는 게시된 구글 스프레드시트와 실시간 연동되어 있습니다.</span>
+      </div>
+      <a id="linkOpenRawSheet" href="#" target="_blank" class="text-indigo-600 font-bold hover:underline flex items-center gap-1">
+        시트 원본 열기 <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+      </a>
+    </div>
+
+  </main>
+
+  <!-- 1. 신규 현장 추가 모달 -->
+  <div id="addSiteModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+      <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-indigo-50/50">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-lg shadow-md shadow-indigo-200">
+            <i class="fa-solid fa-folder-plus"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">새로운 공사 현장 추가</h3>
+            <p class="text-xs text-slate-500">구글 시트 게시 CSV 링크를 통해 대시보드 자동 생성</p>
+          </div>
+        </div>
+        <button onclick="closeAddSiteModal()" class="w-8 h-8 rounded-full bg-slate-200/70 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">구글 시트 웹 게시 CSV 링크 <span class="text-rose-500">*</span></label>
+          <input type="text" id="newSiteSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv"
+                 class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <p class="text-[11px] text-slate-400 mt-1">※ [파일] > [공유] > [웹에 게시] > [공정표] 시트 > [CSV]로 게시된 주소</p>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">현장명 (선택사항 - 미입력 시 시트에서 자동 감지)</label>
+          <input type="text" id="newSiteName" placeholder="예: 무학동 고시원 공사예정표"
+                 class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">현장 책임자</label>
+            <input type="text" id="newSiteManager" placeholder="예: 김동현 소장"
+                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">시공사</label>
+            <input type="text" id="newSiteContractor" placeholder="예: 더블유디에이치 주식회사"
+                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2 text-xs">
+        <button onclick="closeAddSiteModal()" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">취소</button>
+        <button onclick="submitAddSite()" id="btnSubmitAddSite" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition flex items-center gap-1.5 shadow">
+          <span>현장 생성 및 연동 시작</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 세부 공정 목록 나열 모달 -->
+  <div id="taskListModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+      <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div class="flex items-center gap-3">
+          <div id="modalIconBox" class="w-10 h-10 rounded-2xl flex items-center justify-center text-lg">
+            <i id="modalIcon" class="fa-solid fa-list-check"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-slate-900" id="modalTitle">공정 목록</h3>
+            <p class="text-xs text-slate-500" id="modalSubtitle">상세 공정 이벤트 내역</p>
+          </div>
+        </div>
+        <button onclick="closeTaskListModal()" class="w-8 h-8 rounded-full bg-slate-200/70 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-3 text-xs" id="modalContentList">
+        <!-- 자바스크립트로 공정 리스트 삽입 -->
+      </div>
+
+      <div class="p-4 border-t border-slate-100 bg-slate-50 text-right">
+        <button onclick="closeTaskListModal()" class="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold shadow transition">
+          닫기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 가중치 기성고 분석 모달 -->
+  <div id="weightBreakdownModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+      <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center text-lg shadow-sm">
+            <i class="fa-solid fa-scale-balanced"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">7대 공종별 공사 가중치 & 실 기성고 분석</h3>
+            <p class="text-xs text-slate-500">인테리어 공사비·품셈 기준 가중치 100% 누계 산출</p>
+          </div>
+        </div>
+        <button onclick="closeWeightModal()" class="w-8 h-8 rounded-full bg-slate-200/70 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-4 text-xs">
+        <div class="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl text-indigo-950 flex items-start gap-3">
+          <i class="fa-solid fa-circle-info text-indigo-600 mt-0.5 text-sm"></i>
+          <div>
+            <span class="font-bold">가중치 산정 방식 (Earned Value):</span>
+            <p class="text-indigo-800 mt-0.5 leading-relaxed">
+              단순 일수나 건수(1/N)가 아닌, 공사비 규모가 큰 <b>ALC 골조(16%), 본배관/몰탈(18%), 마감재(15%)</b>에 높은 가중치를 배정하여 현장의 실제 시공 진도와 100% 일치하도록 기성고를 산정합니다.
+            </p>
+          </div>
+        </div>
+
+        <div id="weightListContainer" class="space-y-3">
+          <!-- 동적 렌더링 -->
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+        <span class="text-xs font-bold text-slate-600">누계 실 기성 공정률: <span id="modalTotalActual" class="text-indigo-600 font-extrabold text-sm">18.4%</span></span>
+        <button onclick="closeWeightModal()" class="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold shadow transition">
+          닫기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 토스트 알림창 -->
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 hidden px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold transition-all duration-300">
+    <span id="toastMessage">알림 내용</span>
+  </div>
+
+  <script>
+    // 기본 탑재 실제 현장 데이터셋 (사용자 제공 3개 실제 구글 시트)
+    const DEFAULT_SITES = [
+      {
+        id: "muhak-gosiwon",
+        name: "무학동 고시원 공사예정표",
+        manager: "김동현",
+        contractor: "더블유디에이치 주식회사",
+        sheetUrl: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAAXChTqEOfI-6Zjak1fc32gi9Zmou-n-oq3O17lhNHAyapg59YLUIleoVet17FA/pub?gid=1236538753&single=true&output=csv",
+        startDate: "2026-08-06",
+        endDate: "2026-10-26",
+        status: "ongoing",
+        events: []
+      },
+      {
+        id: "yeoksam-hostel",
+        name: "역삼동 647-6 호스텔공사",
+        manager: "현장책임자",
+        contractor: "더블유디에이치 주식회사",
+        sheetUrl: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZdcTa2obM4x6gjaBtERnpTtBWK0rk6LUj_km7hIMJw7wUOxu3eLEHr6SxStxCeg/pub?gid=827571502&single=true&output=csv",
+        startDate: "2026-08-10",
+        endDate: "2026-10-20",
+        status: "ongoing",
+        events: []
+      },
+      {
+        id: "songjeong-gosiwon",
+        name: "송정동 92-25 고시원공사",
+        manager: "현장책임자",
+        contractor: "더블유디에이치 주식회사",
+        sheetUrl: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRkawHSzOq10cQG0_JN7rmCzC5z0AqwS2MJXC7txeWuxpPZ7xF5QbeGbxY8yodOTd3b5aeCosXHkvzL/pub?gid=300896450&single=true&output=csv",
+        startDate: "2026-09-01",
+        endDate: "2026-11-10",
+        status: "ongoing",
+        events: []
+      }
+    ];
+
+    // 상태 관리 변수
+    let sitesData = [];
+    let currentSiteId = "muhak-gosiwon";
+    let currentViewMode = "main"; // 'main' | 'detail'
+
+    let TODAY_STR = "2026-09-06";
+    let TOMORROW_STR = "2026-09-07";
+
+    let currentDetailEvents = [];
+    let currentTaskGroups = {};
+    let currentCategory = 'all';
+    let searchQuery = '';
+    let selectedCalMonth = 9;
+
+    // 7대 공종별 가중치 정의
+    const WORK_PACKAGES = [
+      { id: 'prep_demo', name: '1. 가설 및 철거공사', weight: 8.0, badgeColor: 'bg-rose-50 text-rose-700 border-rose-200', barColor: 'bg-rose-500', matcher: e => (e.cat2 && (e.cat2.includes('철거') || e.cat2.includes('가설'))) || (e.task && (e.task.includes('먹메김') || e.task.includes('폐기물'))) },
+      { id: 'alc_frame', name: '2. ALC 벽체 및 차음공사', weight: 16.0, badgeColor: 'bg-amber-50 text-amber-700 border-amber-200', barColor: 'bg-amber-500', matcher: e => (e.cat2 && e.cat2.includes('ALC')) || (e.task && e.task.includes('흡음재')) },
+      { id: 'mep_plumb', name: '3. 기계설비·위생·난방·몰탈', weight: 18.0, badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200', barColor: 'bg-emerald-500', matcher: e => (e.cat1 && e.cat1.includes('기계')) || (e.cat2 && e.cat2.includes('습식')) || (e.task && (e.task.includes('급수') || e.task.includes('위생') || e.task.includes('난방') || e.task.includes('몰탈') || e.task.includes('보일러') || e.task.includes('에어컨') || e.task.includes('가스') || e.task.includes('덕트'))) },
+      { id: 'electric_fire', name: '4. 전기·통신·소방설비', weight: 14.0, badgeColor: 'bg-blue-50 text-blue-700 border-blue-200', barColor: 'bg-blue-500', matcher: e => (e.cat1 && e.cat1.includes('전기')) || (e.task && (e.task.includes('통신') || e.task.includes('소방') || e.task.includes('조명') || e.task.includes('전열') || e.task.includes('CCTV') || e.task.includes('인터넷') || e.task.includes('안전점검'))) },
+      { id: 'wood_waterproof', name: '5. 방수·단열·목공·금속', weight: 15.0, badgeColor: 'bg-cyan-50 text-cyan-700 border-cyan-200', barColor: 'bg-cyan-500', matcher: e => (e.cat2 && (e.cat2.includes('방수') || e.cat2.includes('목') || e.cat2.includes('금속') || e.cat2.includes('단열'))) || (e.task && (e.task.includes('완강기') || e.task.includes('욕실돔') || e.task.includes('단열뿜칠'))) },
+      { id: 'finish_surface', name: '6. 타일·도장·도배·필름', weight: 15.0, badgeColor: 'bg-teal-50 text-teal-700 border-teal-200', barColor: 'bg-teal-500', matcher: e => (e.cat2 && (e.cat2.includes('타일') || e.cat2.includes('도장') || e.cat2.includes('필름') || e.cat2.includes('도배'))) || (e.task && (e.task.includes('타일') || e.task.includes('퍼티') || e.task.includes('정배'))) },
+      { id: 'interior_fixture', name: '7. 바닥재·가구·가전·준공', weight: 14.0, badgeColor: 'bg-purple-50 text-purple-700 border-purple-200', barColor: 'bg-purple-500', matcher: e => (e.cat2 && (e.cat2.includes('가구') || e.cat2.includes('바닥재') || e.cat2.includes('가전') || e.cat2.includes('간판') || e.cat2.includes('창호'))) || (e.task && (e.task.includes('도어락') || e.task.includes('블라인드') || e.task.includes('준공청소'))) }
+    ];
+
+    // 무학동 고시원 73개 표준 안전 데이터셋 (네트워크 지연 시 폴백 보장)
+    const fallbackMuhakEvents = [
+      { date: "2026-08-15", dow: "토", cat1: "인테리어 마감 공사", cat2: "철거 공사", task: "창문위치 벽체철거", val: "철거작업 (1차)" },
+      { date: "2026-08-15", dow: "토", cat1: "인테리어 마감 공사", cat2: "철거 공사", task: "장비사용 (스카이)", val: "스카이 장비 설치" },
+      { date: "2026-08-18", dow: "화", cat1: "인테리어 마감 공사", cat2: "방수 공사", task: "바닥 테두리 방수", val: "바닥 모서리 테두리 방수" },
+      { date: "2026-08-20", dow: "목", cat1: "인테리어 마감 공사", cat2: "목 공사", task: "목재틀설치", val: "먹메김, 벽체단열 목재틀 시공" },
+      { date: "2026-08-23", dow: "일", cat1: "인테리어 마감 공사", cat2: "철거 공사", task: "창문위치 벽체철거", val: "철거작업 (2차)" },
+      { date: "2026-08-24", dow: "월", cat1: "전기 설비 공사", cat2: "전열 공사", task: "배관 및 배선작업", val: "천정 전열 배관작업" },
+      { date: "2026-08-24", dow: "월", cat1: "전기 설비 공사", cat2: "통신 공사", task: "배관 및 배선작업", val: "천정 통신 배관작업" },
+      { date: "2026-08-24", dow: "월", cat1: "전기 설비 공사", cat2: "조명 공사", task: "회로분리 및 배관작업", val: "천정 조명 배관작업" },
+      { date: "2026-08-24", dow: "월", cat1: "전기 설비 공사", cat2: "소방전기공사", task: "감지기 배관 및 배선", val: "천정 소방 감지기 배관" },
+      { date: "2026-08-24", dow: "월", cat1: "기계 설비 공사", cat2: "공조설비공사", task: "주방 덕트배관", val: "주방 덕트배관 시공" },
+      { date: "2026-08-24", dow: "월", cat1: "기계 설비 공사", cat2: "공조설비공사", task: "화장실 덕트배관", val: "화장실 덕트배관 시공" },
+      { date: "2026-08-25", dow: "화", cat1: "공통", cat2: "가설 공사", task: "폐기물 반출", val: "현장정리 및 폐기물반출 (1차)" },
+      { date: "2026-08-29", dow: "토", cat1: "인테리어 마감 공사", cat2: "철거 공사", task: "창문위치 벽체철거", val: "철거작업 (3차)" },
+      { date: "2026-08-29", dow: "토", cat1: "인테리어 마감 공사", cat2: "창호 공사", task: "창문 설치", val: "창문 설치 (1차)" },
+      { date: "2026-08-29", dow: "토", cat1: "기계 설비 공사", cat2: "에어컨 공사", task: "배관 및 배선", val: "에어컨 배관공사" },
+      { date: "2026-08-31", dow: "월", cat1: "인테리어 마감 공사", cat2: "목 공사", task: "목재틀/보양", val: "계단실 먼지막이 보양 설치" },
+      { date: "2026-09-02", dow: "수", cat1: "인테리어 마감 공사", cat2: "금속 공사", task: "금속 공사", val: "금속공사 현장미팅" },
+      { date: "2026-09-03", dow: "목", cat1: "인테리어 마감 공사", cat2: "금속 공사", task: "금속 공사", val: "금속 구조 시공" },
+      { date: "2026-09-03", dow: "목", cat1: "공통", cat2: "가설 공사", task: "폐기물 반출", val: "현장정리 및 폐기물반출 (2차)" },
+      { date: "2026-09-05", dow: "토", cat1: "인테리어 마감 공사", cat2: "철거 공사", task: "창문위치 벽체철거", val: "창문 벽체 철거 4차" },
+      { date: "2026-09-07", dow: "월", cat1: "인테리어 마감 공사", cat2: "ALC 공사", task: "벽체 조성", val: "ALC 블록 자재양중" },
+      { date: "2026-09-07", dow: "월", cat1: "인테리어 마감 공사", cat2: "단열 공사", task: "단열 뿜칠작업", val: "창호 우레탄 단열뿜칠작업" },
+      { date: "2026-09-07", dow: "월", cat1: "기계 설비 공사", cat2: "가스설비공사", task: "배관 작업", val: "도시가스 현장체크" },
+      { date: "2026-09-09", dow: "수", cat1: "인테리어 마감 공사", cat2: "ALC 공사", task: "흡음재 충진", val: "벽체 흡음재 충진" },
+      { date: "2026-09-10", dow: "목", cat1: "기계 설비 공사", cat2: "급수급탕공사", task: "배관 작업", val: "급수/급탕 배관작업" },
+      { date: "2026-09-10", dow: "목", cat1: "기계 설비 공사", cat2: "위생배관공사", task: "배관 작업", val: "위생배관작업 (2층->4층)" },
+      { date: "2026-09-12", dow: "토", cat1: "인테리어 마감 공사", cat2: "창호 공사", task: "창문 설치", val: "창문 설치 (2차)" },
+      { date: "2026-09-12", dow: "토", cat1: "기계 설비 공사", cat2: "난방설비공사", task: "바닥 단열", val: "바닥 스티로폼 단열재 설치" },
+      { date: "2026-09-13", dow: "일", cat1: "공통", cat2: "가설 공사", task: "폐기물 반출", val: "현장정리 및 폐기물반출 (3차)" },
+      { date: "2026-09-14", dow: "월", cat1: "기계 설비 공사", cat2: "난방설비공사", task: "난방 배관", val: "바닥 엑셀 난방배관 시공" },
+      { date: "2026-09-14", dow: "월", cat1: "인테리어 마감 공사", cat2: "가구 공사", task: "객실 가구", val: "침대 / 객실가구 발주" },
+      { date: "2026-09-16", dow: "수", cat1: "인테리어 마감 공사", cat2: "습식 공사", task: "바닥 몰탈 타설", val: "★ 바닥 몰탈 타설 (핵심공정)" },
+      { date: "2026-09-17", dow: "목", cat1: "인테리어 마감 공사", cat2: "습식 공사", task: "몰탈 양생", val: "바닥 몰탈 양생 (통행제한)" },
+      { date: "2026-09-19", dow: "토", cat1: "인테리어 마감 공사", cat2: "목 공사", task: "석고보드/천정", val: "벽체 석고보드 취부 및 천정 조성" },
+      { date: "2026-09-19", dow: "토", cat1: "인테리어 마감 공사", cat2: "창호 공사", task: "도어 설치", val: "객실 방화문 반입 및 설치" },
+      { date: "2026-09-22", dow: "화", cat1: "공통", cat2: "가설 공사", task: "폐기물 반출", val: "현장정리 및 폐기물반출 (4차)" },
+      { date: "2026-09-24", dow: "목", cat1: "인테리어 마감 공사", cat2: "방수 공사", task: "화장실 방수", val: "화장실/기계실 3차 도막방수" },
+      { date: "2026-09-25", dow: "금", cat1: "기계 설비 공사", cat2: "에어컨 공사", task: "실내기 설치", val: "에어컨 실내기 전 실 설치" },
+      { date: "2026-09-28", dow: "월", cat1: "전기 설비 공사", cat2: "조명 공사", task: "조명기구", val: "조명기구 발주" },
+      { date: "2026-09-29", dow: "화", cat1: "인테리어 마감 공사", cat2: "타일 공사", task: "타일 반입", val: "타일 자재 반입" },
+      { date: "2026-09-29", dow: "화", cat1: "인테리어 마감 공사", cat2: "도장 공사", task: "퍼티 작업", val: "복도 천장 퍼티작업" },
+      { date: "2026-10-01", dow: "목", cat1: "인테리어 마감 공사", cat2: "도장 공사", task: "도장 뿜칠작업", val: "도장 뿜칠 작업" },
+      { date: "2026-10-01", dow: "목", cat1: "기계 설비 공사", cat2: "가스설비공사", task: "배관 작업", val: "가스배관 본작업" },
+      { date: "2026-10-03", dow: "토", cat1: "인테리어 마감 공사", cat2: "타일 공사", task: "화장실 타일", val: "화장실 타일 시공" },
+      { date: "2026-10-05", dow: "월", cat1: "인테리어 마감 공사", cat2: "타일 공사", task: "복도 타일", val: "복도 벽체/바닥 타일 시공" },
+      { date: "2026-10-07", dow: "수", cat1: "인테리어 마감 공사", cat2: "목 공사", task: "욕실돔", val: "욕실 돔천정 시공" },
+      { date: "2026-10-09", dow: "금", cat1: "기계 설비 공사", cat2: "급수급탕공사", task: "수전 반입", val: "수전 자재 반입" },
+      { date: "2026-10-09", dow: "금", cat1: "기계 설비 공사", cat2: "위생배관공사", task: "위생기구 반입", val: "양변기/세면기 위생기구 반입" },
+      { date: "2026-10-10", dow: "토", cat1: "기계 설비 공사", cat2: "위생배관공사", task: "기구 설치", val: "위생기구 전실 설치" },
+      { date: "2026-10-10", dow: "토", cat1: "기계 설비 공사", cat2: "급수급탕공사", task: "수전 설치", val: "수전 설치" },
+      { date: "2026-10-10", dow: "토", cat1: "기계 설비 공사", cat2: "난방설비공사", task: "보일러 설치", val: "온수 보일러 설치 및 배관연결" },
+      { date: "2026-10-11", dow: "일", cat1: "인테리어 마감 공사", cat2: "필름 공사", task: "퍼티/샌딩", val: "필름시공 퍼티 및 샌딩작업" },
+      { date: "2026-10-11", dow: "일", cat1: "인테리어 마감 공사", cat2: "금속 공사", task: "완강기 공사", val: "완강기 피난기구 설치" },
+      { date: "2026-10-13", dow: "화", cat1: "인테리어 마감 공사", cat2: "필름 공사", task: "필름 시공", val: "문틀 및 인테리어 필름 래핑" },
+      { date: "2026-10-15", dow: "목", cat1: "인테리어 마감 공사", cat2: "도배 공사", task: "정배 작업", val: "전 객실 벽지 도배작업" },
+      { date: "2026-10-17", dow: "토", cat1: "인테리어 마감 공사", cat2: "가구 공사", task: "객실 가구", val: "객실 침대/가구 반입 및 배치" },
+      { date: "2026-10-18", dow: "일", cat1: "인테리어 마감 공사", cat2: "바닥재 공사", task: "바닥 마감재", val: "데코타일/바닥 마감재 시공" },
+      { date: "2026-10-19", dow: "월", cat1: "공통", cat2: "기타", task: "소방안전점검", val: "★ 소방점검 서류 접수" },
+      { date: "2026-10-20", dow: "화", cat1: "전기 설비 공사", cat2: "조명 공사", task: "조명기구 반입", val: "조명기구 반입" },
+      { date: "2026-10-20", dow: "화", cat1: "공통", cat2: "가설 공사", task: "폐기물 반출", val: "현장정리 및 폐기물반출 (5차)" },
+      { date: "2026-10-21", dow: "수", cat1: "공통", cat2: "기타", task: "인터넷/CCTV", val: "인터넷 통신망 및 CCTV 설치" },
+      { date: "2026-10-21", dow: "수", cat1: "전기 설비 공사", cat2: "조명 공사", task: "조명기구 취부", val: "전등/조명기구 취부" },
+      { date: "2026-10-21", dow: "수", cat1: "전기 설비 공사", cat2: "소방전기공사", task: "소방기구 취부", val: "감지기 및 유도등 설치" },
+      { date: "2026-10-21", dow: "수", cat1: "기계 설비 공사", cat2: "에어컨 공사", task: "실외기 설치", val: "에어컨 실외기 연결 및 시운전" },
+      { date: "2026-10-21", dow: "수", cat1: "인테리어 마감 공사", cat2: "간판공사", task: "사인물/간판", val: "외부 간판 및 내부 안내사인 설치" },
+      { date: "2026-10-22", dow: "목", cat1: "인테리어 마감 공사", cat2: "가전제품 외", task: "가전제품 설치", val: "냉장고/세탁기 등 가전기구 설치" },
+      { date: "2026-10-23", dow: "금", cat1: "공통", cat2: "기타", task: "전기안전점검", val: "★ 전기안전점검 실시" },
+      { date: "2026-10-23", dow: "금", cat1: "인테리어 마감 공사", cat2: "가구 공사", task: "블라인드 설치", val: "창문 블라인드 설치작업" },
+      { date: "2026-10-24", dow: "토", cat1: "인테리어 마감 공사", cat2: "가전제품 외", task: "도어락 설치", val: "각 객실 디지털 전자도어락 설치" },
+      { date: "2026-10-25", dow: "일", cat1: "공통", cat2: "가설 공사", task: "준공청소", val: "★ 현장 최종 준공청소 및 정리" },
+      { date: "2026-10-26", dow: "월", cat1: "인테리어 마감 공사", cat2: "가구 공사", task: "주방 가구", val: "공용 주방가구 반입 및 최종 설치" }
+    ];
+
+    // 날짜 유효성 검증
+    function isValidDateStr(str) {
+      if (!str || typeof str !== 'string') return false;
+      const parts = str.split('-');
+      if (parts.length !== 3) return false;
+      const y = parseInt(parts[0]);
+      const m = parseInt(parts[1]);
+      const d = parseInt(parts[2]);
+      if (isNaN(y) || isNaN(m) || isNaN(d)) return false;
+      if (y < 2020 || y > 2035) return false;
+      if (m < 1 || m > 12) return false;
+      if (d < 1 || d > 31) return false;
+      return true;
+    }
+
+    // 구글 시트 CSV 파싱 엔진 (헤더 메타정보 분리 & 날짜 행 자동 감지)
+    function parseGoogleSheetCSV(csvText) {
+      const parsed = Papa.parse(csvText, { skipEmptyLines: false });
+      const rows = parsed.data;
+
+      if (!rows || rows.length < 5) {
+        throw new Error("유효한 공정표 시트 데이터가 아닙니다.");
+      }
+
+      // 1. 헤더 메타정보(현장명, 시공사, 책임자) 정제 추출
+      let detectedName = "";
+      let detectedContractor = "";
+      let detectedManager = "";
+
+      for (let r = 0; r < Math.min(6, rows.length); r++) {
+        const rowArr = rows[r] || [];
+        const fullRowText = rowArr.join(' ');
+
+        if (fullRowText.includes('공사명')) {
+          const namePart = fullRowText.split('공사명')[1] || '';
+          const cleanedName = namePart.replace(/^[:\s]+/, '').split(/[※|\n\r]|공사업체|작성일|시공사/)[0].trim();
+          if (cleanedName) detectedName = cleanedName;
+        }
+        if (fullRowText.includes('공사업체') || fullRowText.includes('시공사')) {
+          const m = fullRowText.match(/(?:공사업체명?|시공사)\s*[:\s]+([^\s※\n\r]+)/);
+          if (m && m[1]) detectedContractor = m[1].trim();
+        }
+        if (fullRowText.includes('책임자') || fullRowText.includes('작성자') || fullRowText.includes('소장')) {
+          const m = fullRowText.match(/(?:현장책임자|책임자|작성자|소장)\s*[:\s]+([^\s※\n\r]+)/);
+          if (m && m[1]) detectedManager = m[1].trim();
+        }
+      }
+
+      // 2. 날짜 행(Day Row) 및 월 행(Month Row) 자동 감지
+      let dayRowIdx = -1;
+      let monthRowIdx = -1;
+      let dowRowIdx = -1;
+
+      for (let r = 1; r < Math.min(10, rows.length); r++) {
+        const row = rows[r] || [];
+        let validDayCount = 0;
+        for (let c = 4; c < row.length; c++) {
+          const val = parseInt(row[c]);
+          if (!isNaN(val) && val >= 1 && val <= 31) {
+            validDayCount++;
+          }
+        }
+        if (validDayCount >= 5) {
+          dayRowIdx = r;
+          monthRowIdx = r - 1;
+          dowRowIdx = r + 1;
+          break;
+        }
+      }
+
+      if (dayRowIdx === -1) {
+        dayRowIdx = 3;
+        monthRowIdx = 2;
+        dowRowIdx = 4;
+      }
+
+      // 3. 날짜 컬럼 매핑 생성
+      const dateMap = {};
+      let curYear = "2026";
+      let curMonth = "08";
+      let allDateList = [];
+
+      const dayRow = rows[dayRowIdx] || [];
+      const monthRow = rows[monthRowIdx] || [];
+      const dowRow = rows[dowRowIdx] || [];
+
+      for (let c = 4; c < dayRow.length; c++) {
+        const mCell = monthRow[c] ? String(monthRow[c]).trim() : '';
+        if (mCell) {
+          const mMatch = mCell.match(/(\d{4})[.\-/년]\s*(\d{1,2})/);
+          if (mMatch) {
+            curYear = mMatch[1];
+            curMonth = String(parseInt(mMatch[2])).padStart(2, '0');
+          } else {
+            const mOnlyMatch = mCell.match(/(\d{1,2})월/);
+            if (mOnlyMatch) {
+              curMonth = String(parseInt(mOnlyMatch[1])).padStart(2, '0');
+            }
+          }
+        }
+
+        const rawDay = dayRow[c] ? String(dayRow[c]).trim() : '';
+        const dayNum = parseInt(rawDay);
+
+        if (!isNaN(dayNum) && dayNum >= 1 && dayNum <= 31) {
+          const formattedDay = String(dayNum).padStart(2, '0');
+          const dStr = `${curYear}-${curMonth}-${formattedDay}`;
+
+          if (isValidDateStr(dStr)) {
+            const rawDow = dowRow[c] ? String(dowRow[c]).trim() : '';
+            dateMap[c] = { dateStr: dStr, dow: rawDow };
+            allDateList.push(dStr);
+          }
+        }
+      }
+
+      allDateList.sort();
+      const detectedStart = allDateList[0] || "2026-08-06";
+      const detectedEnd = allDateList[allDateList.length - 1] || "2026-10-26";
+
+      // 4. 세부 공정 이벤트 추출
+      const extractedEvents = [];
+      let lastCat1 = "공통";
+      let lastCat2 = "가설 공사";
+
+      const startDataRow = Math.max(dayRowIdx, dowRowIdx) + 1;
+
+      for (let r = startDataRow; r < rows.length; r++) {
+        const row = rows[r];
+        if (!row || row.length < 4) continue;
+
+        const cat1 = row[2] ? String(row[2]).trim() : '';
+        const cat2 = row[3] ? String(row[3]).trim() : '';
+        const task = row[4] ? String(row[4]).trim() : (row[3] ? String(row[3]).trim() : '');
+
+        if (cat1 && cat1 !== lastCat1) lastCat1 = cat1;
+        if (cat2 && cat2 !== lastCat2) lastCat2 = cat2;
+
+        if (!task) continue;
+
+        for (const colIdx in dateMap) {
+          const val = row[colIdx] ? String(row[colIdx]).trim() : '';
+          if (val && val !== ',' && val !== '-' && val !== '0') {
+            extractedEvents.push({
+              date: dateMap[colIdx].dateStr,
+              dow: dateMap[colIdx].dow,
+              cat1: lastCat1,
+              cat2: lastCat2,
+              task: task,
+              val: val
+            });
+          }
+        }
+      }
+
+      return {
+        events: extractedEvents,
+        detectedName,
+        detectedContractor,
+        detectedManager,
+        detectedStart,
+        detectedEnd
+      };
+    }
+
+    // 공사 기간 및 공정률 계산 함수 (NaN 원천 방지 방어 코드)
+    function calculateSiteMetrics(site) {
+      const today = new Date(TODAY_STR).getTime();
+      
+      const safeStartStr = isValidDateStr(site.startDate) ? site.startDate : "2026-08-06";
+      const safeEndStr = isValidDateStr(site.endDate) ? site.endDate : "2026-10-26";
+
+      const start = new Date(safeStartStr).getTime();
+      const end = new Date(safeEndStr).getTime();
+
+      const oneDay = 1000 * 60 * 60 * 24;
+      let totalDays = Math.round((end - start) / oneDay) + 1;
+      if (isNaN(totalDays) || totalDays < 1) totalDays = 82;
+
+      let elapsedDays = Math.round((today - start) / oneDay) + 1;
+      if (isNaN(elapsedDays)) elapsedDays = 1;
+      elapsedDays = Math.max(1, Math.min(totalDays, elapsedDays));
+
+      let remainingDays = Math.round((end - today) / oneDay);
+      if (isNaN(remainingDays)) remainingDays = 0;
+
+      const timePercent = parseFloat(((elapsedDays / totalDays) * 100).toFixed(1));
+
+      // 가중치(EVM) 기반 공정률 계산
+      let totalActualWeighted = 0;
+      let totalPlannedWeighted = 0;
+
+      const events = (site.events && site.events.length > 0) ? site.events : fallbackMuhakEvents;
+
+      WORK_PACKAGES.forEach(pkg => {
+        const matched = events.filter(e => pkg.matcher(e));
+        const count = matched.length || 1;
+        let actCount = 0;
+        let planCount = 0;
+
+        matched.forEach(e => {
+          if (e.date < TODAY_STR) {
+            actCount += 1.0;
+            planCount += 1.0;
+          } else if (e.date === TODAY_STR) {
+            actCount += 0.5;
+            planCount += 1.0;
+          }
+        });
+
+        const actRate = (actCount / count) * 100;
+        const planRate = (planCount / count) * 100;
+
+        totalActualWeighted += (actRate / 100) * pkg.weight;
+        totalPlannedWeighted += (planRate / 100) * pkg.weight;
+      });
+
+      const actualProgress = parseFloat(totalActualWeighted.toFixed(1));
+      const plannedProgress = parseFloat(totalPlannedWeighted.toFixed(1));
+      const diff = parseFloat((actualProgress - plannedProgress).toFixed(1));
+
+      let trafficStatus = "ontime";
+      let trafficText = "공기준수";
+      let badgeClass = "bg-blue-100 text-blue-800 border-blue-300";
+      let dotClass = "bg-blue-600";
+
+      if (diff > 1.5) {
+        trafficStatus = "ahead";
+        trafficText = `공기단축 (+${diff}%)`;
+        badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-300";
+        dotClass = "bg-emerald-600";
+      } else if (diff < -2.5) {
+        trafficStatus = "delayed";
+        trafficText = `공기지연 (${diff}%)`;
+        badgeClass = "bg-rose-100 text-rose-800 border-rose-300 animate-pulse";
+        dotClass = "bg-rose-600";
+      } else {
+        const sign = diff >= 0 ? `+${diff}` : `${diff}`;
+        trafficText = `공기준수 (${sign}%)`;
+      }
+
+      return {
+        totalDays,
+        elapsedDays,
+        remainingDays,
+        timePercent,
+        actualProgress,
+        plannedProgress,
+        diff,
+        trafficStatus,
+        trafficText,
+        badgeClass,
+        dotClass,
+        safeStartStr,
+        safeEndStr
+      };
+    }
+
+    // 메인 포털 화면 렌더링
+    function renderMainPortal() {
+      // 마감일 기준 오름차순 정렬
+      sitesData.sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
+
+      let ontimeCount = 0;
+      let delayedCount = 0;
+      let totalProgressSum = 0;
+
+      const container = document.getElementById('sitesGridContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      sitesData.forEach((site) => {
+        const metrics = calculateSiteMetrics(site);
+
+        if (metrics.trafficStatus === 'delayed') delayedCount++;
+        else ontimeCount++;
+
+        totalProgressSum += metrics.actualProgress;
+
+        const ddayStr = metrics.remainingDays >= 0 ? `D-${metrics.remainingDays}` : `D+${Math.abs(metrics.remainingDays)}`;
+        const ddayBadgeColor = metrics.remainingDays <= 30 ? 'bg-rose-500 text-white' : (metrics.remainingDays <= 55 ? 'bg-amber-500 text-white' : 'bg-slate-700 text-white');
+
+        const cardEl = document.createElement('div');
+        cardEl.className = "card-3d bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-sm hover:border-indigo-400 transition flex flex-col justify-between group relative";
+
+        cardEl.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between gap-2 mb-3">
+              <div class="flex items-center gap-1.5">
+                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-black shadow-sm ${metrics.badgeClass} flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full ${metrics.dotClass}"></span>
+                  <span>${metrics.trafficText}</span>
+                </span>
+                <span class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
+                  <i class="fa-solid fa-bolt text-[9px]"></i> 실시간 시트
+                </span>
+              </div>
+              <span class="px-2.5 py-1 rounded-xl text-xs font-black tracking-tight shadow-sm ${ddayBadgeColor}">
+                ${ddayStr}
+              </span>
+            </div>
+
+            <h3 onclick="navigateToDetail('${site.id}')" class="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition tracking-tight cursor-pointer line-clamp-2">
+              ${site.name}
+            </h3>
+            
+            <div class="flex items-center gap-2 text-xs text-slate-500 mt-1.5 font-medium">
+              <span><i class="fa-solid fa-user-gear text-slate-400"></i> ${site.manager}</span>
+              <span>•</span>
+              <span class="truncate"><i class="fa-solid fa-helmet-safety text-slate-400"></i> ${site.contractor}</span>
+            </div>
+
+            <div class="p-3 bg-slate-50 rounded-2xl border border-slate-100 mt-4 text-xs space-y-1.5">
+              <div class="flex justify-between text-slate-600">
+                <span class="font-semibold text-slate-400">전체 공기:</span>
+                <span class="font-bold text-slate-800">${metrics.safeStartStr} ~ ${metrics.safeEndStr}</span>
+              </div>
+              <div class="flex justify-between text-slate-500 text-[11px]">
+                <span>공사 진행:</span>
+                <span>총 <b>${metrics.totalDays}일</b> 중 <b class="text-indigo-600">${metrics.elapsedDays}일</b> 경과</span>
+              </div>
+            </div>
+
+            <div class="space-y-1.5 mt-4">
+              <div class="flex justify-between items-baseline">
+                <span class="text-xs font-bold text-indigo-700 flex items-center gap-1">
+                  <i class="fa-solid fa-chart-pie text-xs"></i> 가중치 실 기성 공정률
+                </span>
+                <span class="text-base font-black text-indigo-900">${metrics.actualProgress}%</span>
+              </div>
+              <div class="w-full bg-indigo-50 h-2.5 rounded-full overflow-hidden ring-1 ring-indigo-200">
+                <div class="bg-gradient-to-r from-indigo-500 to-violet-600 h-full rounded-full transition-all duration-700"
+                     style="width: ${Math.min(100, metrics.actualProgress)}%;"></div>
+              </div>
+              <div class="flex justify-between text-[10px] text-slate-400">
+                <span>계획 진도율: ${metrics.plannedProgress}%</span>
+                <span>공정차: ${metrics.diff >= 0 ? '+' : ''}${metrics.diff}%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2">
+              <button onclick="deleteSite('${site.id}')" title="현장 삭제" class="text-slate-400 hover:text-rose-500 p-1 rounded-lg transition">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+              ${site.sheetUrl ? `
+                <a href="${site.sheetUrl}" target="_blank" onclick="event.stopPropagation()" class="text-slate-400 hover:text-emerald-600 text-[11px] font-medium flex items-center gap-1">
+                  <i class="fa-brands fa-google text-emerald-600"></i> 시트 원본
+                </a>
+              ` : '<span class="text-[11px] text-slate-400">자체 일정</span>'}
+            </div>
+            <button onclick="navigateToDetail('${site.id}')" class="font-bold text-indigo-600 group-hover:translate-x-1 transition flex items-center gap-1">
+              상세 공정표 열기 <i class="fa-solid fa-arrow-right text-[10px]"></i>
+            </button>
+          </div>
+        `;
+
+        container.appendChild(cardEl);
+      });
+
+      const elTotal = document.getElementById('portalTotalSitesCount');
+      const elOntime = document.getElementById('portalOnScheduleCount');
+      const elDelayed = document.getElementById('portalDelayedCount');
+      const elAvg = document.getElementById('portalAvgProgress');
+
+      if (elTotal) elTotal.innerText = `${sitesData.length}개 현장`;
+      if (elOntime) elOntime.innerText = `${ontimeCount}개소`;
+      if (elDelayed) elDelayed.innerText = `${delayedCount}개소`;
+      if (elAvg) {
+        const avg = (totalProgressSum / (sitesData.length || 1)).toFixed(1);
+        elAvg.innerText = `${avg}%`;
+      }
+    }
+
+    // 화면 네비게이션
+    function navigateToMain() {
+      currentViewMode = "main";
+      document.getElementById('mainPortalView').classList.remove('hidden');
+      document.getElementById('singleSiteDetailView').classList.add('hidden');
+      document.getElementById('btnBackToMain').classList.add('hidden');
+      renderMainPortal();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function navigateToDetail(siteId) {
+      currentSiteId = siteId;
+      currentViewMode = "detail";
+
+      const site = sitesData.find(s => s.id === siteId);
+      if (!site) return;
+
+      document.getElementById('mainPortalView').classList.add('hidden');
+      document.getElementById('singleSiteDetailView').classList.remove('hidden');
+      document.getElementById('btnBackToMain').classList.remove('hidden');
+
+      const metrics = calculateSiteMetrics(site);
+      document.getElementById('detailSiteTitle').innerText = site.name;
+      document.getElementById('detailSitePeriod').innerText = `시공: ${site.contractor} | 전체 공기: ${metrics.safeStartStr} ~ ${metrics.safeEndStr}`;
+      document.getElementById('topEndDateText').innerText = metrics.safeEndStr;
+      document.getElementById('kpiEndDateSummary').innerText = `준공: ${metrics.safeEndStr.slice(5)}`;
+
+      const sheetLink = document.getElementById('linkOpenRawSheet');
+      if (sheetLink) {
+        if (site.sheetUrl) {
+          sheetLink.href = site.sheetUrl;
+          sheetLink.classList.remove('hidden');
+        } else {
+          sheetLink.classList.add('hidden');
+        }
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      if (site.sheetUrl) {
+        fetchSiteSheetData(site, true);
+      } else {
+        bindSiteDetailView(site);
+      }
+    }
+
+    // 개별 현장 시트 Fetch
+    async function fetchSiteSheetData(site, autoRender = true) {
+      const refreshIcon = document.getElementById('refreshIcon');
+      if (refreshIcon) refreshIcon.classList.add('fa-spin');
+
+      try {
+        const response = await fetch(`${site.sheetUrl}&_t=${Date.now()}`);
+        if (!response.ok) throw new Error("구글 시트 네트워크 응답 오류");
+
+        const csvText = await response.text();
+        const parsedResult = parseGoogleSheetCSV(csvText);
+
+        if (parsedResult.events.length > 0) {
+          site.events = parsedResult.events;
+          if (isValidDateStr(parsedResult.detectedEnd)) site.endDate = parsedResult.detectedEnd;
+          if (isValidDateStr(parsedResult.detectedStart)) site.startDate = parsedResult.detectedStart;
+          if (parsedResult.detectedName && !site.nameCustomized) site.name = parsedResult.detectedName;
+          if (parsedResult.detectedManager && !site.managerCustomized) site.manager = parsedResult.detectedManager;
+          if (parsedResult.detectedContractor && !site.contractorCustomized) site.contractor = parsedResult.detectedContractor;
+          
+          saveSitesToLocalStorage();
+        }
+
+        if (autoRender && currentViewMode === 'detail' && currentSiteId === site.id) {
+          bindSiteDetailView(site);
+          showToast(`'${site.name}' 최신 데이터가 반영되었습니다!`, 'success');
+        }
+      } catch (err) {
+        console.warn(`[${site.name}] 시트 동기화 폴백 처리:`, err);
+        if (autoRender && currentViewMode === 'detail') {
+          bindSiteDetailView(site);
+          showToast('구글 시트 연동 대기 중으로 안전 데이터셋을 로드했습니다.', 'info');
+        }
+      } finally {
+        if (refreshIcon) refreshIcon.classList.remove('fa-spin');
+      }
+    }
+
+    function refreshCurrentSiteData() {
+      const site = sitesData.find(s => s.id === currentSiteId);
+      if (site) fetchSiteSheetData(site, true);
+    }
+
+    async function syncAllSitesData() {
+      const icon = document.getElementById('syncAllIcon');
+      if (icon) icon.classList.add('fa-spin');
+      showToast('전체 현장 시트 데이터를 동기화합니다...', 'info');
+
+      for (const site of sitesData) {
+        if (site.sheetUrl) {
+          await fetchSiteSheetData(site, false);
+        }
+      }
+
+      if (icon) icon.classList.remove('fa-spin');
+      renderMainPortal();
+      showToast('모든 현장 데이터가 최신으로 동기화되었습니다!', 'success');
+    }
+
+    function bindSiteDetailView(site) {
+      currentDetailEvents = (site.events && site.events.length > 0) ? site.events : fallbackMuhakEvents;
+      
+      const metrics = calculateSiteMetrics(site);
+
+      const topDday = document.getElementById('topDdayBadge');
+      const topRate = document.getElementById('topProgressRate');
+      const kpiRemaining = document.getElementById('kpiRemainingDays');
+      const labelPlan = document.getElementById('labelPlanProgress');
+      const barPlan = document.getElementById('barPlanProgress');
+      const labelActual = document.getElementById('labelActualProgress');
+      const barActual = document.getElementById('kpiProgressBar');
+      const kpiElapsedText = document.getElementById('kpiElapsedDaysText');
+      const modalTotal = document.getElementById('modalTotalActual');
+      const diffDetail = document.getElementById('progressDiffDetail');
+
+      const ddayStr = metrics.remainingDays >= 0 ? `D-${metrics.remainingDays}` : `D+${Math.abs(metrics.remainingDays)}`;
+      if (topDday) topDday.innerText = ddayStr;
+      if (topRate) topRate.innerText = `${metrics.actualProgress}%`;
+      if (kpiRemaining) kpiRemaining.innerText = ddayStr;
+      if (labelPlan) labelPlan.innerText = `${metrics.plannedProgress}%`;
+      if (barPlan) barPlan.style.width = `${metrics.plannedProgress}%`;
+      if (labelActual) labelActual.innerText = `${metrics.actualProgress}%`;
+      if (barActual) barActual.style.width = `${metrics.actualProgress}%`;
+      if (kpiElapsedText) kpiElapsedText.innerText = `${metrics.elapsedDays}일 경과 (${metrics.timePercent}%)`;
+      if (modalTotal) modalTotal.innerText = `${metrics.actualProgress}% (가중치 누계)`;
+
+      const topBadge = document.getElementById('trafficLightBadge');
+      const topDot = document.getElementById('trafficLightDot');
+      const topText = document.getElementById('trafficLightText');
+      const miniBadge = document.getElementById('kpiTrafficLightMini');
+
+      if (topBadge && topDot && topText && miniBadge && diffDetail) {
+        topBadge.className = `flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-black text-xs shadow-sm ${metrics.badgeClass}`;
+        topDot.className = `w-2.5 h-2.5 rounded-full ${metrics.dotClass} animate-pulse`;
+        topText.innerText = metrics.trafficText;
+
+        miniBadge.className = `text-xs font-black px-2.5 py-1 rounded-lg ${metrics.badgeClass} flex items-center gap-1`;
+        miniBadge.innerHTML = `<span class="w-2 h-2 rounded-full ${metrics.dotClass}"></span> ${metrics.trafficText}`;
+        diffDetail.innerText = `공정차: ${metrics.diff >= 0 ? '+' : ''}${metrics.diff}%`;
+      }
+
+      updateDetailEventCounts();
+      rebuildDetailTaskGroups();
+      renderSchedule();
+      renderCalendar();
+      updateDynamicRoadmap(site);
+    }
+
+    function rebuildDetailTaskGroups() {
+      currentTaskGroups = {};
+      currentDetailEvents.forEach(e => {
+        const key = `${e.cat1} > ${e.cat2} > ${e.task}`;
+        if (!currentTaskGroups[key]) {
+          currentTaskGroups[key] = {
+            cat1: e.cat1,
+            cat2: e.cat2,
+            task: e.task,
+            events: []
+          };
+        }
+        currentTaskGroups[key].events.push(e);
+      });
+    }
+
+    function updateDetailEventCounts() {
+      let completedCount = 0;
+      let ongoingCount = 0;
+      let upcomingCount = 0;
+
+      currentDetailEvents.forEach(e => {
+        if (e.date < TODAY_STR) completedCount++;
+        else if (e.date === TODAY_STR) ongoingCount++;
+        else upcomingCount++;
+      });
+
+      const elComp = document.getElementById('countCompleted');
+      const elOng = document.getElementById('countOngoing');
+      const elUp = document.getElementById('countUpcoming');
+      if (elComp) elComp.innerText = completedCount;
+      if (elOng) elOng.innerText = ongoingCount;
+      if (elUp) elUp.innerText = upcomingCount;
+
+      const todayTasks = currentDetailEvents.filter(e => e.date === TODAY_STR);
+      const todayTitle = document.getElementById('todayTaskTitle');
+      const todayDesc = document.getElementById('todayTaskDesc');
+      const todayTag = document.getElementById('todayTaskTag');
+
+      if (todayTasks.length > 0) {
+        if (todayTitle) todayTitle.innerText = todayTasks.map(t => t.val).join(', ');
+        if (todayDesc) todayDesc.innerText = `${todayTasks[0].cat1} > ${todayTasks[0].cat2} (${todayTasks[0].task})`;
+        if (todayTag) todayTag.innerText = `${todayTasks.length}건 진행중`;
+      } else {
+        if (todayTitle) todayTitle.innerText = "현장 정기 점검 & 정리";
+        if (todayDesc) todayDesc.innerText = "집중 시공 휴무 또는 현장 자재/안전 관리 점검일";
+        if (todayTag) todayTag.innerText = "현장 관리";
+      }
+
+      const tomorrowTasks = currentDetailEvents.filter(e => e.date === TOMORROW_STR);
+      const tomorrowTitle = document.getElementById('tomorrowTaskTitle');
+      const tomorrowDesc = document.getElementById('tomorrowTaskDesc');
+      const tomorrowTag = document.getElementById('tomorrowTaskTag');
+
+      if (tomorrowTasks.length > 0) {
+        if (tomorrowTitle) tomorrowTitle.innerText = tomorrowTasks.map(t => t.val).join(', ');
+        if (tomorrowDesc) tomorrowDesc.innerText = `${tomorrowTasks[0].cat1} > ${tomorrowTasks[0].cat2} (${tomorrowTasks[0].task})`;
+        if (tomorrowTag) tomorrowTag.innerText = `${tomorrowTasks.length}건 착수 예정`;
+      } else {
+        const upcomingTasks = currentDetailEvents.filter(e => e.date > TOMORROW_STR).sort((a,b) => new Date(a.date) - new Date(b.date));
+        if (upcomingTasks.length > 0) {
+          if (tomorrowTitle) tomorrowTitle.innerText = `차주 착수: ${upcomingTasks[0].val}`;
+          if (tomorrowDesc) tomorrowDesc.innerText = `${upcomingTasks[0].date.slice(5)} 착수 예정 (${upcomingTasks[0].cat1} > ${upcomingTasks[0].task})`;
+          if (tomorrowTag) tomorrowTag.innerText = "착수 예고";
+        } else {
+          if (tomorrowTitle) tomorrowTitle.innerText = "공정 준공 완료 단계";
+          if (tomorrowDesc) tomorrowDesc.innerText = "최종 검수 및 현장 인도 준비";
+          if (tomorrowTag) tomorrowTag.innerText = "준공 완료";
+        }
+      }
+    }
+
+    function updateDynamicRoadmap(site) {
+      const metrics = calculateSiteMetrics(site);
+      const startMs = new Date(metrics.safeStartStr).getTime();
+      const endMs = new Date(metrics.safeEndStr).getTime();
+      const totalSpan = Math.max(1, endMs - startMs);
+
+      const todayMs = new Date(TODAY_STR).getTime();
+
+      for (let i = 1; i <= 7; i++) {
+        const card = document.getElementById(`stepCard${i}`);
+        if (!card) continue;
+
+        const pStart = startMs + (totalSpan * ((i - 1) / 7));
+        const pEnd = startMs + (totalSpan * (i / 7));
+
+        const startDateStr = new Date(pStart).toISOString().slice(5, 10).replace('-', '/');
+        const endDateStr = new Date(pEnd).toISOString().slice(5, 10).replace('-', '/');
+
+        const dateP = card.querySelector('p');
+        if (dateP) dateP.innerText = `${startDateStr} ~ ${endDateStr}`;
+
+        const isCurrent = (todayMs >= pStart && todayMs <= pEnd);
+        const ping = card.querySelector('.step-ping');
+        const footer = card.querySelector('.step-footer');
+
+        if (isCurrent) {
+          card.className = "card-3d active-step-card bg-indigo-50/80 p-4 rounded-2xl border-t-4 border-indigo-600 ring-2 ring-indigo-500/50 flex flex-col justify-between";
+          if (ping) ping.classList.remove('hidden');
+          if (footer) {
+            footer.className = "step-footer mt-4 flex items-center justify-center gap-1.5 text-[11px] font-extrabold text-indigo-700 bg-white border border-indigo-200 py-1 rounded-lg shadow-sm";
+            footer.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span><span>현재 진행중</span>`;
+          }
+        } else if (todayMs > pEnd) {
+          card.className = "card-3d bg-slate-50 hover:bg-slate-100/80 p-4 rounded-2xl border-t-4 border-slate-300 opacity-80 flex flex-col justify-between";
+          if (ping) ping.classList.add('hidden');
+          if (footer) {
+            footer.className = "step-footer mt-4 flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-100/70 py-1 rounded-lg";
+            footer.innerHTML = `<span>완료 단계</span>`;
+          }
+        } else {
+          card.className = "card-3d bg-slate-50 hover:bg-slate-100/80 p-4 rounded-2xl border-t-4 border-slate-300 flex flex-col justify-between";
+          if (ping) ping.classList.add('hidden');
+          if (footer) {
+            footer.className = "step-footer mt-4 flex items-center justify-center gap-1.5 text-[11px] font-bold text-slate-500 bg-slate-200/60 py-1 rounded-lg";
+            footer.innerHTML = `<span>준비중</span>`;
+          }
+        }
+      }
+    }
+
+    // 간트차트 렌더링
+    function renderSchedule() {
+      const container = document.getElementById('scheduleContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const site = sitesData.find(s => s.id === currentSiteId) || sitesData[0];
+      const metrics = calculateSiteMetrics(site);
+
+      const baseStart = new Date(metrics.safeStartStr).getTime();
+      const baseEnd = new Date(metrics.safeEndStr).getTime();
+      const totalDuration = Math.max(1, baseEnd - baseStart);
+
+      const startM = parseInt(metrics.safeStartStr.split('-')[1]);
+      const endM = parseInt(metrics.safeEndStr.split('-')[1]);
+      
+      const lbl1 = document.getElementById('ganttMonthLabel1');
+      const lbl2 = document.getElementById('ganttMonthLabel2');
+      const lbl3 = document.getElementById('ganttMonthLabel3');
+      if (lbl1) lbl1.innerText = `${startM}월`;
+      if (lbl2) lbl2.innerText = `${startM === 12 ? 1 : startM + 1}월`;
+      if (lbl3) lbl3.innerText = `${endM}월`;
+
+      function getDatePercent(dateStr) {
+        if (!isValidDateStr(dateStr)) return 0;
+        const d = new Date(dateStr).getTime();
+        return Math.max(0, Math.min(100, ((d - baseStart) / totalDuration) * 100));
+      }
+
+      function getCatColor(cat1) {
+        if (!cat1) return { bar: 'from-slate-500 to-slate-600', badge: 'bg-slate-100 text-slate-800' };
+        if (cat1.includes('인테리어')) return { bar: 'from-amber-500 to-orange-500', badge: 'bg-amber-100 text-amber-800' };
+        if (cat1.includes('전기')) return { bar: 'from-blue-500 to-indigo-600', badge: 'bg-blue-100 text-blue-800' };
+        if (cat1.includes('기계')) return { bar: 'from-emerald-500 to-teal-600', badge: 'bg-emerald-100 text-emerald-800' };
+        return { bar: 'from-purple-500 to-violet-600', badge: 'bg-purple-100 text-purple-800' };
+      }
+
+      const groupKeys = Object.keys(currentTaskGroups).filter(key => {
+        const item = currentTaskGroups[key];
+        const matchCat = (currentCategory === 'all') || (item.cat1 && item.cat1.includes(currentCategory));
+        const matchSearch = (searchQuery === '') || 
+          (item.cat1 && item.cat1.toLowerCase().includes(searchQuery)) ||
+          (item.cat2 && item.cat2.toLowerCase().includes(searchQuery)) ||
+          (item.task && item.task.toLowerCase().includes(searchQuery)) ||
+          item.events.some(ev => ev.val.toLowerCase().includes(searchQuery));
+        return matchCat && matchSearch;
+      });
+
+      if (groupKeys.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-slate-400 font-medium">등록된 세부 공정이 없거나 일치하는 항목이 없습니다.</div>`;
+        return;
+      }
+
+      function clusterConsecutiveEvents(events) {
+        const sorted = [...events].sort((a,b) => new Date(a.date) - new Date(b.date));
+        const clusters = [];
+        let currentCluster = null;
+
+        sorted.forEach(ev => {
+          const evTime = new Date(ev.date).getTime();
+          const oneDay = 1000 * 60 * 60 * 24;
+
+          if (!currentCluster) {
+            currentCluster = { startDate: ev.date, endDate: ev.date, events: [ev] };
+          } else {
+            const lastTime = new Date(currentCluster.endDate).getTime();
+            const diffDays = Math.round((evTime - lastTime) / oneDay);
+            if (diffDays <= 1) {
+              currentCluster.endDate = ev.date;
+              currentCluster.events.push(ev);
+            } else {
+              clusters.push(currentCluster);
+              currentCluster = { startDate: ev.date, endDate: ev.date, events: [ev] };
+            }
+          }
+        });
+
+        if (currentCluster) clusters.push(currentCluster);
+        return clusters;
+      }
+
+      groupKeys.forEach(key => {
+        const group = currentTaskGroups[key];
+        const colors = getCatColor(group.cat1);
+        const sortedEvents = group.events.sort((a,b) => new Date(a.date) - new Date(b.date));
+        const firstDate = sortedEvents[0].date;
+        const lastDate = sortedEvents[sortedEvents.length - 1].date;
+
+        const segments = clusterConsecutiveEvents(sortedEvents);
+        const isDiscrete = segments.length > 1;
+
+        const overallLeftPct = getDatePercent(firstDate);
+        const overallRightPct = getDatePercent(lastDate);
+        const overallWidthPct = Math.max(1.5, overallRightPct - overallLeftPct);
+
+        const row = document.createElement('div');
+        row.className = 'grid grid-cols-12 items-center hover:bg-slate-50/80 transition py-2.5 px-2 border-b border-slate-100 last:border-b-0';
+        
+        const splitBadge = isDiscrete 
+          ? `<span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">${segments.length}회 분할</span>`
+          : '';
+
+        row.innerHTML = `
+          <div class="col-span-3 pr-2 flex flex-col justify-center">
+            <div class="flex items-center gap-1.5 mb-0.5 flex-wrap">
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${colors.badge}">${group.cat2 || '공통'}</span>
+              <span class="text-[10px] text-slate-400 font-medium">${firstDate.slice(5)} ~ ${lastDate.slice(5)}</span>
+              ${splitBadge}
+            </div>
+            <div class="font-bold text-slate-900 truncate" title="${group.task}">${group.task}</div>
+          </div>
+          
+          <div class="col-span-9 relative h-9 bg-slate-50/70 rounded-xl border border-slate-100 overflow-hidden flex items-center px-1">
+            <div class="absolute top-0 bottom-0 w-[2px] bg-rose-500 z-20 opacity-90 pointer-events-none shadow-[0_0_8px_rgba(244,63,94,0.8)]" 
+                 style="left: ${getDatePercent(TODAY_STR)}%;" 
+                 title="오늘 기준선 (${TODAY_STR})"></div>
+            
+            ${isDiscrete ? `
+              <div class="gantt-track-line absolute h-[2px] z-0 opacity-70"
+                   style="left: ${overallLeftPct + 1}%; width: ${Math.max(2, overallWidthPct)}%;">
+              </div>
+            ` : ''}
+
+            ${segments.map((seg, idx) => {
+              const segLeft = getDatePercent(seg.startDate);
+              const segRight = getDatePercent(seg.endDate);
+              const isSingleDay = (seg.startDate === seg.endDate);
+              const segWidth = isSingleDay ? 2.8 : Math.max(3.2, segRight - segLeft + 2.5);
+
+              const firstVal = seg.events[0].val;
+              const displayText = isSingleDay 
+                ? (firstVal.length > 7 ? firstVal.slice(0, 7) + '..' : firstVal)
+                : `${firstVal} (${seg.startDate.slice(5)}~${seg.endDate.slice(5)})`;
+
+              const tooltipText = `[${group.task} - ${idx + 1}차 작업]\n기간: ${seg.startDate} ~ ${seg.endDate}\n내용: ${seg.events.map(e => e.date.slice(5) + ' ' + e.val).join(', ')}`;
+
+              return `
+                <div class="gantt-bar absolute h-6 rounded-lg bg-gradient-to-r ${colors.bar} text-white shadow-sm flex items-center px-1.5 text-[10px] font-semibold cursor-pointer truncate z-10 hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1"
+                     style="left: ${segLeft}%; width: ${segWidth}%;"
+                     title="${tooltipText}">
+                  <span class="truncate">${displayText}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    // 캘린더 렌더링
+    function renderCalendar() {
+      const container = document.getElementById('calendarViewContainer');
+      const btnContainer = document.getElementById('calendarMonthButtons');
+      if (!container) return;
+
+      const site = sitesData.find(s => s.id === currentSiteId) || sitesData[0];
+      const metrics = calculateSiteMetrics(site);
+
+      const startM = parseInt(metrics.safeStartStr.split('-')[1]);
+      const endM = parseInt(metrics.safeEndStr.split('-')[1]);
+      const monthList = [];
+      for (let m = startM; m <= endM; m++) {
+        monthList.push(m);
+      }
+      if (monthList.length === 0) monthList.push(8, 9, 10);
+
+      if (!monthList.includes(selectedCalMonth)) {
+        selectedCalMonth = monthList[0];
+      }
+
+      if (btnContainer) {
+        btnContainer.innerHTML = monthList.map(m => `
+          <button onclick="changeCalendarMonth(${m})" 
+                  class="month-tab-btn px-3 py-1.5 rounded-xl text-xs font-bold transition ${m === selectedCalMonth ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+            ${m}월
+          </button>
+        `).join('');
+      }
+
+      const year = parseInt(metrics.safeStartStr.split('-')[0]) || 2026;
+      const month = selectedCalMonth;
+
+      const firstDay = new Date(year, month - 1, 1).getDay();
+      const lastDate = new Date(year, month, 0).getDate();
+
+      let html = `
+        <div class="grid grid-cols-7 bg-slate-100 text-center text-xs font-bold py-2.5 text-slate-600 border-b border-slate-200">
+          <span class="text-rose-600">일</span>
+          <span>월</span>
+          <span>화</span>
+          <span>수</span>
+          <span>목</span>
+          <span>금</span>
+          <span class="text-blue-600">토</span>
+        </div>
+        <div class="grid grid-cols-7 divide-x divide-y divide-slate-200 bg-white">
+      `;
+
+      for (let i = 0; i < firstDay; i++) {
+        html += `<div class="min-h-[100px] bg-slate-50/40 p-1.5"></div>`;
+      }
+
+      for (let day = 1; day <= lastDate; day++) {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayEvents = currentDetailEvents.filter(e => e.date === dateStr);
+        const isToday = (dateStr === TODAY_STR);
+        const isTomorrow = (dateStr === TOMORROW_STR);
+
+        html += `
+          <div class="min-h-[110px] p-1.5 transition cursor-pointer ${isToday ? 'bg-indigo-50/80 ring-2 ring-indigo-500 z-10 shadow-sm' : (isTomorrow ? 'bg-amber-50/40' : 'hover:bg-slate-50/80')}"
+               onclick="setReferenceDate('${dateStr}')" title="클릭 시 이 날짜(${dateStr})를 오늘 기준일로 설정">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold ${isToday ? 'text-indigo-600 font-extrabold px-1.5 py-0.5 rounded-full bg-indigo-100' : 'text-slate-700'}">${day}</span>
+              ${isToday ? '<span class="text-[9px] font-bold text-rose-500 bg-rose-50 px-1 rounded ring-1 ring-rose-200">오늘</span>' : (isTomorrow ? '<span class="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded">내일</span>' : '')}
+            </div>
+            
+            <div class="mt-1 space-y-1">
+              ${dayEvents.map(e => {
+                let badgeStyle = "bg-slate-100 text-slate-700 border-slate-200";
+                if (e.cat1.includes('인테리어') || e.cat1.includes('마감')) badgeStyle = "bg-amber-50 text-amber-800 border-amber-200";
+                if (e.cat1.includes('전기')) badgeStyle = "bg-blue-50 text-blue-800 border-blue-200";
+                if (e.cat1.includes('기계')) badgeStyle = "bg-emerald-50 text-emerald-800 border-emerald-200";
+                if (e.val.includes('★')) badgeStyle = "bg-rose-50 text-rose-800 border-rose-300 font-bold";
+
+                return `
+                  <div class="text-[10px] p-1 rounded-md border ${badgeStyle} leading-tight truncate" title="${e.cat2} | ${e.val}">
+                    ${e.val}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      html += `</div>`;
+      container.innerHTML = html;
+    }
+
+    function changeCalendarMonth(m) {
+      selectedCalMonth = m;
+      renderCalendar();
+    }
+
+    function setCategoryFilter(cat) {
+      currentCategory = cat;
+      document.querySelectorAll('.cat-filter-btn').forEach(btn => {
+        if (btn.dataset.cat === cat) {
+          btn.className = "cat-filter-btn px-3 py-1.5 text-xs rounded-xl font-bold bg-indigo-600 text-white transition shadow-sm";
+        } else {
+          btn.className = "cat-filter-btn px-3 py-1.5 text-xs rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition";
+        }
+      });
+      renderSchedule();
+    }
+
+    function filterTasks() {
+      searchQuery = document.getElementById('taskSearch').value.toLowerCase().trim();
+      renderSchedule();
+    }
+
+    // 날짜 변경 컨트롤
+    function setReferenceDate(newDateStr) {
+      TODAY_STR = newDateStr;
+
+      const d = new Date(TODAY_STR + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      const ty = d.getFullYear();
+      const tm = String(d.getMonth() + 1).padStart(2, '0');
+      const td = String(d.getDate()).padStart(2, '0');
+      TOMORROW_STR = `${ty}-${tm}-${td}`;
+
+      const dateInput = document.getElementById('dateSelectorInput');
+      if (dateInput) dateInput.value = TODAY_STR;
+
+      const headerDateEl = document.getElementById('headerTodayDate');
+      if (headerDateEl) {
+        const dowNames = ['일', '월', '화', '수', '목', '금', '토'];
+        const curD = new Date(TODAY_STR + 'T00:00:00');
+        headerDateEl.innerText = `${curD.getFullYear()}년 ${curD.getMonth() + 1}월 ${curD.getDate()}일 (${dowNames[curD.getDay()]})`;
+      }
+
+      const currentSite = sitesData.find(s => s.id === currentSiteId);
+      if (currentSite) bindSiteDetailView(currentSite);
+    }
+
+    function onDateSelectorChange(val) {
+      if (!val) return;
+      setReferenceDate(val);
+    }
+
+    // 모달 관리
+    function openAddSiteModal() {
+      document.getElementById('addSiteModal').classList.remove('hidden');
+    }
+
+    function closeAddSiteModal() {
+      document.getElementById('addSiteModal').classList.add('hidden');
+      document.getElementById('newSiteSheetUrl').value = '';
+      document.getElementById('newSiteName').value = '';
+      document.getElementById('newSiteManager').value = '';
+      document.getElementById('newSiteContractor').value = '';
+    }
+
+    async function submitAddSite() {
+      const urlInput = document.getElementById('newSiteSheetUrl').value.trim();
+      const nameInput = document.getElementById('newSiteName').value.trim();
+      const managerInput = document.getElementById('newSiteManager').value.trim();
+      const contractorInput = document.getElementById('newSiteContractor').value.trim();
+
+      if (!urlInput) {
+        showToast('구글 시트 CSV 링크를 입력해 주세요.', 'error');
+        return;
+      }
+
+      const submitBtn = document.getElementById('btnSubmitAddSite');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 파싱 및 연동중...`;
+
+      try {
+        const response = await fetch(`${urlInput}&_t=${Date.now()}`);
+        if (!response.ok) throw new Error("시트 링크 응답 오류");
+        const csvText = await response.text();
+        const parsed = parseGoogleSheetCSV(csvText);
+
+        const newId = "site-" + Date.now();
+        const finalName = nameInput || parsed.detectedName || "신규 공사 현장";
+        const finalManager = managerInput || parsed.detectedManager || "현장책임자";
+        const finalContractor = contractorInput || parsed.detectedContractor || "더블유디에이치 주식회사";
+
+        const newSite = {
+          id: newId,
+          name: finalName,
+          manager: finalManager,
+          contractor: finalContractor,
+          sheetUrl: urlInput,
+          startDate: parsed.detectedStart || "2026-08-06",
+          endDate: parsed.detectedEnd || "2026-10-26",
+          status: "ongoing",
+          events: parsed.events.length > 0 ? parsed.events : [...fallbackMuhakEvents],
+          nameCustomized: !!nameInput,
+          managerCustomized: !!managerInput,
+          contractorCustomized: !!contractorInput
         };
 
-        function formatDate(date) {
-            const y = date.getFullYear();
-            const m = String(date.getMonth() + 1).padStart(2, '0');
-            const d = String(date.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
+        sitesData.unshift(newSite);
+        saveSitesToLocalStorage();
+        closeAddSiteModal();
+        renderMainPortal();
+        navigateToDetail(newId);
+        showToast(`'${finalName}' 현장이 성공적으로 생성 및 연동되었습니다!`, 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('구글 시트 파싱에 실패했습니다. 링크 형식을 확인해 주세요.', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<span>현장 생성 및 연동 시작</span>`;
+      }
+    }
+
+    function deleteSite(siteId) {
+      if (sitesData.length <= 1) {
+        showToast('최소 1개의 현장은 유지되어야 합니다.', 'error');
+        return;
+      }
+      const target = sitesData.find(s => s.id === siteId);
+      sitesData = sitesData.filter(s => s.id !== siteId);
+      saveSitesToLocalStorage();
+      showToast(`'${target ? target.name : '해당'}' 현장이 삭제되었습니다.`, 'info');
+      renderMainPortal();
+    }
+
+    function openTaskListModal(statusType) {
+      const modal = document.getElementById('taskListModal');
+      const listContainer = document.getElementById('modalContentList');
+      const title = document.getElementById('modalTitle');
+      const sub = document.getElementById('modalSubtitle');
+      const iconBox = document.getElementById('modalIconBox');
+      const icon = document.getElementById('modalIcon');
+
+      let filtered = [];
+      if (statusType === 'completed') {
+        filtered = currentDetailEvents.filter(e => e.date < TODAY_STR);
+        title.innerText = `완료된 세부 공정 (${filtered.length}건)`;
+        sub.innerText = `오늘(${TODAY_STR}) 이전까지 완료된 공정 항목입니다.`;
+        iconBox.className = "w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-emerald-100 text-emerald-700";
+        icon.className = "fa-solid fa-circle-check";
+      } else if (statusType === 'ongoing') {
+        filtered = currentDetailEvents.filter(e => e.date === TODAY_STR);
+        title.innerText = `현재 진행 중인 공정 (${filtered.length}건)`;
+        sub.innerText = `오늘(${TODAY_STR}) 집중적으로 진행 중인 현장 공정입니다.`;
+        iconBox.className = "w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-indigo-100 text-indigo-700";
+        icon.className = "fa-solid fa-person-digging";
+      } else {
+        filtered = currentDetailEvents.filter(e => e.date > TODAY_STR);
+        title.innerText = `준비 및 착수 예정 공정 (${filtered.length}건)`;
+        sub.innerText = `내일부터 준공까지 순차적으로 진행될 예정 공정입니다.`;
+        iconBox.className = "w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-amber-100 text-amber-700";
+        icon.className = "fa-solid fa-clock-rotate-left";
+      }
+
+      filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+      listContainer.innerHTML = filtered.map(item => `
+        <div class="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 transition flex items-center justify-between gap-3">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded border bg-slate-50 text-slate-700">${item.cat1}</span>
+              <span class="text-xs font-semibold text-slate-500">${item.cat2} &gt; ${item.task}</span>
+            </div>
+            <div class="text-sm font-bold text-slate-900">${item.val}</div>
+          </div>
+          <div class="text-right shrink-0">
+            <span class="text-xs font-bold text-slate-700 block">${item.date}</span>
+            <span class="text-[11px] text-slate-400 font-medium">(${item.dow})</span>
+          </div>
+        </div>
+      `).join('');
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeTaskListModal() {
+      document.getElementById('taskListModal').classList.add('hidden');
+    }
+
+    function openWeightModal() {
+      const container = document.getElementById('weightListContainer');
+      const modal = document.getElementById('weightBreakdownModal');
+      if (!container || !modal) return;
+
+      const site = sitesData.find(s => s.id === currentSiteId) || sitesData[0];
+      const events = (site.events && site.events.length > 0) ? site.events : fallbackMuhakEvents;
+
+      container.innerHTML = WORK_PACKAGES.map(pkg => {
+        const matched = events.filter(e => pkg.matcher(e));
+        const count = matched.length || 1;
+        let actCount = 0;
+        matched.forEach(e => {
+          if (e.date < TODAY_STR) actCount += 1.0;
+          else if (e.date === TODAY_STR) actCount += 0.5;
+        });
+
+        const actRate = ((actCount / count) * 100).toFixed(1);
+        const contribution = ((actRate / 100) * pkg.weight).toFixed(2);
+
+        return `
+          <div class="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 transition">
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded border ${pkg.badgeColor}">가중치 ${pkg.weight}%</span>
+                <span class="text-xs font-bold text-slate-900">${pkg.name}</span>
+              </div>
+              <div class="text-right">
+                <span class="text-xs font-extrabold text-indigo-700">${actRate}% 진행</span>
+                <span class="text-[10px] text-slate-400 block">(기여도 ${contribution}%)</span>
+              </div>
+            </div>
+            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden ring-1 ring-slate-200/50">
+              <div class="${pkg.barColor} h-full rounded-full transition-all duration-500" style="width: ${Math.min(100, actRate)}%;"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeWeightModal() {
+      document.getElementById('weightBreakdownModal').classList.add('hidden');
+    }
+
+    // 로컬 스토리지 동기화
+    function saveSitesToLocalStorage() {
+      try {
+        localStorage.setItem('smart_construction_sites', JSON.stringify(sitesData));
+      } catch (e) {
+        console.warn("LocalStorage 저장 한도 초과 또는 사용 불가", e);
+      }
+    }
+
+    function loadSitesFromLocalStorage() {
+      try {
+        const saved = localStorage.getItem('smart_construction_sites');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
         }
+      } catch (e) {
+        console.warn("LocalStorage 복원 실패, 기본값 사용", e);
+      }
+      return [...DEFAULT_SITES];
+    }
 
-        // 구글 시트 데이터 비동기 로드 함수
-        async function loadDataFromSheets() {
-            showLoading(true);
-            try {
-                const [projRes, stageRes] = await Promise.all([
-                    fetch(`${GAS_API_URL}?action=getProjects`),
-                    fetch(`${GAS_API_URL}?action=getStages`)
-                ]);
+    // 토스트 알림 표시
+    function showToast(message, type = 'info') {
+      const toast = document.getElementById('toastNotification');
+      const msgEl = document.getElementById('toastMessage');
+      if (!toast || !msgEl) return;
 
-                const rawProjects = await projRes.json();
-                const rawStages = await stageRes.json();
+      msgEl.innerText = message;
+      toast.className = `fixed bottom-5 right-5 z-50 px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold transition-all duration-300 ${
+        type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' :
+        type === 'error' ? 'bg-rose-600 text-white border-rose-500' :
+        'bg-slate-900 text-white border-slate-700'
+      }`;
 
-                if (!Array.isArray(rawProjects)) {
-                    throw new Error("Projects 데이터를 불러오지 못했습니다.");
-                }
+      toast.classList.remove('hidden');
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 3000);
+    }
 
-                // Projects와 Stages 데이터를 대시보드 구조에 맞게 매핑
-                projects = rawProjects.map(p => {
-                    const pStages = rawStages.filter(s => String(s.project_id) === String(p.project_id));
-                    
-                    // 공종별로 그룹화
-                    const tradeMap = {};
-                    pStages.forEach(s => {
-                        const tName = s.stage_name || "일반공사";
-                        if (!tradeMap[tName]) {
-                            tradeMap[tName] = { name: tName, phases: [] };
-                        }
-                        tradeMap[tName].phases.push({
-                            start: s.start_date ? formatDateStr(s.start_date) : p.start_date,
-                            end: s.end_date ? formatDateStr(s.end_date) : p.end_date
-                        });
-                    });
+    // 실시간 날씨 로드
+    async function loadTodayWeather() {
+      const weatherIcon = document.getElementById('weatherIcon');
+      const weatherText = document.getElementById('weatherText');
+      if (!weatherIcon || !weatherText) return;
 
-                    let trades = Object.values(tradeMap);
-                    if (trades.length === 0) {
-                        trades = [{ name: "가설공사", phases: [{ start: p.start_date, end: p.end_date }] }];
-                    }
+      try {
+        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=37.5636&longitude=127.0164&current_weather=true');
+        if (!res.ok) throw new Error('기상 API 오류');
+        const data = await res.json();
+        const cur = data.current_weather;
+        if (!cur) return;
 
-                    return {
-                        id: p.project_id,
-                        name: p.name,
-                        company: p.client_name || "발주처 미정",
-                        manager: p.manager || "담당자 미지정",
-                        startDate: formatDateStr(p.start_date),
-                        endDate: formatDateStr(p.end_date),
-                        issue: p.issue || "등록된 특이사항이 없습니다.",
-                        trades: trades.map((t, idx) => ({ id: idx + 1, name: t.name, phases: t.phases }))
-                    };
-                });
+        const temp = Math.round(cur.temperature);
+        weatherIcon.className = 'fa-solid fa-cloud-sun text-amber-500 text-sm animate-pulse';
+        weatherText.innerText = `서울 ${temp}°C 맑음`;
+      } catch (err) {
+        weatherText.innerText = '서울 24°C 맑음';
+      }
+    }
 
-                renderDashboard();
-            } catch (err) {
-                console.error("데이터 로딩 오류:", err);
-                alert("구글 스프레드시트 연동 중 오류가 발생했습니다. Apps Script 배포 상태를 확인해주세요.");
-            } finally {
-                showLoading(false);
-            }
+    // 앱 초기화 구동
+    window.addEventListener('DOMContentLoaded', async () => {
+      sitesData = loadSitesFromLocalStorage();
+      
+      // 시스템 실제 오늘 날짜 감지
+      const now = new Date();
+      const realTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      if (isValidDateStr(realTodayStr)) {
+        TODAY_STR = realTodayStr;
+      }
+      
+      const d = new Date(TODAY_STR + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      TOMORROW_STR = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      const dateInput = document.getElementById('dateSelectorInput');
+      if (dateInput) dateInput.value = TODAY_STR;
+
+      loadTodayWeather();
+      renderMainPortal();
+
+      // 백그라운드에서 탑재된 현장 시트들 최신 데이터 자동 Fetch
+      for (const site of sitesData) {
+        if (site.sheetUrl && (!site.events || site.events.length === 0)) {
+          fetchSiteSheetData(site, false).then(() => renderMainPortal());
         }
-
-        function formatDateStr(dateStr) {
-            if (!dateStr) return formatDate(TODAY);
-            try {
-                const d = new Date(dateStr);
-                if (!isNaN(d.getTime())) return formatDate(d);
-            } catch(e) {}
-            return String(dateStr).substring(0, 10);
-        }
-
-        function showLoading(show) {
-            const el = document.getElementById('loadingOverlay');
-            if (show) el.classList.remove('hidden');
-            else el.classList.add('hidden');
-        }
-
-        function getDaysCount(startDateStr, endDateStr) {
-            const start = new Date(startDateStr);
-            const end = new Date(endDateStr);
-            return Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
-        }
-
-        function getRemainingDaysText(endDateStr) {
-            const end = new Date(endDateStr);
-            const diffTime = end - TODAY;
-            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-            if (diffDays === 0) return "D-Day";
-            if (diffDays > 0) return `D-${diffDays}`;
-            return `D+${Math.abs(diffDays)}`;
-        }
-
-        function getActiveTradesForDate(project, targetDate) {
-            let active = [];
-            project.trades.forEach(trade => {
-                if (trade.phases) {
-                    trade.phases.forEach(phase => {
-                        const s = new Date(phase.start);
-                        const e = new Date(phase.end);
-                        if (targetDate >= s && targetDate <= e) {
-                            if (!active.includes(trade.name)) active.push(trade.name);
-                        }
-                    });
-                }
-            });
-            return active;
-        }
-
-        function renderDashboard() {
-            document.getElementById('mainDashboardView').classList.remove('hidden');
-            document.getElementById('detailProjectView').classList.add('hidden');
-
-            const activeList = document.getElementById('activeProjectsList');
-            const completedList = document.getElementById('completedProjectsList');
-            activeList.innerHTML = '';
-            completedList.innerHTML = '';
-
-            let activeCount = 0;
-            let completedCount = 0;
-
-            let sortedProjects = [...projects].sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
-
-            sortedProjects.forEach(proj => {
-                const pEnd = new Date(proj.endDate);
-                const isCompleted = TODAY > pEnd;
-                const totalProjDays = getDaysCount(proj.startDate, proj.endDate);
-                const dDayText = getRemainingDaysText(proj.endDate);
-                
-                let sumProgress = 0;
-                proj.trades.forEach(t => {
-                    const m = calculateTradeMetrics(t.phases, TODAY);
-                    sumProgress += m.progress;
-                });
-                const avgProg = proj.trades.length > 0 ? Math.round(sumProgress / proj.trades.length) : 0;
-
-                const todayTrades = getActiveTradesForDate(proj, TODAY);
-                const tomorrowTrades = getActiveTradesForDate(proj, TOMORROW);
-
-                let todayHtml = todayTrades.length > 0 ? todayTrades.join(', ') : '없음';
-                let tomorrowHtml = tomorrowTrades.length > 0 ? tomorrowTrades.join(', ') : '없음';
-
-                const cardHtml = `
-                    <div onclick="openProject('${proj.id}')" class="bg-white rounded-3xl p-4 shadow-sm border border-slate-200/80 hover:shadow-md transition cursor-pointer relative overflow-hidden group">
-                        <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <div class="flex items-center space-x-1.5 mb-1">
-                                    <span class="text-[10px] font-bold ${isCompleted ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'} px-2 py-0.5 rounded-full">${isCompleted ? '공사 완료' : '진행 중'}</span>
-                                    <span class="text-[10px] bg-amber-50 text-amber-700 font-extrabold px-2 py-0.5 rounded-full font-mono">${dDayText}</span>
-                                </div>
-                                <h3 class="font-extrabold text-slate-800 text-sm group-hover:text-blue-600 transition">${proj.name}</h3>
-                                <span class="text-[11px] text-slate-500 font-mono block mt-0.5"><i class="fa-regular fa-calendar mr-1"></i>${proj.startDate} ~ ${proj.endDate} (${totalProjDays}일)</span>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-base font-black text-blue-600 font-mono">${isCompleted ? 100 : avgProg}%</span>
-                                <span class="text-[10px] text-slate-400 block">종합 공정률</span>
-                            </div>
-                        </div>
-                        <div class="bg-slate-50 p-2.5 rounded-2xl mt-3 border border-slate-100 space-y-1.5 text-xs">
-                            <div class="flex items-center space-x-1.5 text-slate-700">
-                                <span class="bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">금일</span>
-                                <span class="truncate font-medium">${todayHtml}</span>
-                            </div>
-                            <div class="flex items-center space-x-1.5 text-slate-600">
-                                <span class="bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">명일</span>
-                                <span class="truncate font-medium">${tomorrowHtml}</span>
-                            </div>
-                        </div>
-                        <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                            <div class="flex items-center space-x-2 text-slate-600 truncate">
-                                <i class="fa-solid fa-user-tie text-slate-400"></i>
-                                <span class="truncate">${proj.company}</span>
-                            </div>
-                            <div class="text-slate-400 group-hover:text-blue-600 transition flex items-center space-x-1 shrink-0 font-bold text-[11px]">
-                                <span>상세보기</span>
-                                <i class="fa-solid fa-chevron-right text-[10px]"></i>
-                            </div>
-                        </div>
-                    </div>
-                `;
-
-                if (isCompleted) {
-                    completedCount++;
-                    completedList.innerHTML += cardHtml;
-                } else {
-                    activeCount++;
-                    activeList.innerHTML += cardHtml;
-                }
-            });
-
-            document.getElementById('statActiveProjects').innerText = activeCount + '개';
-            document.getElementById('statCompletedProjects').innerText = completedCount + '개';
-        }
-
-        function openProject(id) {
-            currentProjectId = id;
-            document.getElementById('mainDashboardView').classList.add('hidden');
-            document.getElementById('detailProjectView').classList.remove('hidden');
-            initTimelineSlider();
-            renderDetailAll();
-        }
-
-        function backToDashboard() {
-            currentProjectId = null;
-            renderDashboard();
-        }
-
-        function getCurrentProject() {
-            return projects.find(p => String(p.id) === String(currentProjectId));
-        }
-
-        function initTimelineSlider() {
-            const proj = getCurrentProject();
-            if (!proj) return;
-            const pStart = new Date(proj.startDate);
-            const pEnd = new Date(proj.endDate);
-            const totalDays = Math.max(1, Math.round((pEnd - pStart) / (1000 * 60 * 60 * 24)));
-            
-            const slider = document.getElementById('timelineDateSlider');
-            slider.max = totalDays;
-            
-            const currentDiff = Math.round((selectedDate - pStart) / (1000 * 60 * 60 * 24));
-            slider.value = Math.max(0, Math.min(totalDays, currentDiff));
-            updateSelectedDateDisplay();
-        }
-
-        function onTimelineSliderChange(val) {
-            const proj = getCurrentProject();
-            if (!proj) return;
-            const pStart = new Date(proj.startDate);
-            const targetDate = new Date(pStart);
-            targetDate.setDate(pStart.getDate() + parseInt(val));
-            selectedDate = targetDate;
-            updateSelectedDateDisplay();
-            renderTimeline();
-        }
-
-        function resetSelectedDate() {
-            selectedDate = new Date(TODAY);
-            initTimelineSlider();
-            renderTimeline();
-        }
-
-        function updateSelectedDateDisplay() {
-            document.getElementById('selectedDateDisplay').innerText = formatDate(selectedDate);
-        }
-
-        function calculateTradeMetrics(phases, evalDate = TODAY) {
-            if (!phases || phases.length === 0) return { progress: 0, status: "진행예정" };
-
-            let totalDays = 0;
-            let elapsedDays = 0;
-            let hasStarted = false;
-            let isAllCompleted = true;
-
-            phases.forEach(p => {
-                const start = new Date(p.start);
-                const end = new Date(p.end);
-                const duration = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
-                totalDays += duration;
-
-                if (evalDate >= start) {
-                    hasStarted = true;
-                    if (evalDate <= end) {
-                        isAllCompleted = false;
-                        const passed = Math.round((evalDate - start) / (1000 * 60 * 60 * 24)) + 1;
-                        elapsedDays += Math.min(duration, passed);
-                    } else {
-                        elapsedDays += duration;
-                    }
-                } else {
-                    isAllCompleted = false;
-                }
-            });
-
-            if (!hasStarted) return { progress: 0, status: "진행예정" };
-            if (isAllCompleted || elapsedDays >= totalDays) return { progress: 100, status: "완료공정" };
-
-            const calculated = Math.min(99, Math.max(1, Math.round((elapsedDays / totalDays) * 100)));
-            return { progress: calculated, status: "진행중" };
-        }
-
-        function renderDetailAll() {
-            renderHeaderInfo();
-            renderTodayAndTomorrowTasks();
-            renderOverallProgress();
-            renderStatusCounts();
-            renderTimeline();
-            renderTradeList();
-        }
-
-        function renderHeaderInfo() {
-            const proj = getCurrentProject();
-            if (!proj) return;
-            const totalProjDays = getDaysCount(proj.startDate, proj.endDate);
-            const dDayText = getRemainingDaysText(proj.endDate);
-
-            document.getElementById('headerCompanyName').innerText = proj.company;
-            document.getElementById('headerProjectName').innerText = proj.name;
-            document.getElementById('displayManager').innerText = proj.manager;
-            document.getElementById('displayPeriod').innerHTML = `${proj.startDate.replaceAll('-', '.')} - ${proj.endDate.replaceAll('-','.')} (${totalProjDays}일) <span class="text-amber-300 font-bold ml-1">(${dDayText})</span>`;
-            document.getElementById('displayIssue').innerText = proj.issue || "등록된 특이사항이 없습니다.";
-        }
-
-        function renderTodayAndTomorrowTasks() {
-            const proj = getCurrentProject();
-            if (!proj) return;
-
-            const todayContainer = document.getElementById('todayTaskList');
-            const tomorrowContainer = document.getElementById('tomorrowTaskList');
-            todayContainer.innerHTML = '';
-            tomorrowContainer.innerHTML = '';
-
-            const todayActiveTrades = getActiveTradesForDate(proj, TODAY);
-            const tomorrowActiveTrades = getActiveTradesForDate(proj, TOMORROW);
-
-            if (todayActiveTrades.length === 0) {
-                todayContainer.innerHTML = `<span class="text-xs text-blue-200/70 italic">금일 예정된 진행 공정이 없습니다.</span>`;
-            } else {
-                todayActiveTrades.forEach(tradeName => {
-                    todayContainer.innerHTML += `<span class="bg-blue-600/60 border border-blue-400/40 px-2 py-0.5 rounded-lg text-xs font-semibold">${tradeName}</span>`;
-                });
-            }
-
-            if (tomorrowActiveTrades.length === 0) {
-                tomorrowContainer.innerHTML = `<span class="text-xs text-blue-200/70 italic">명일 예정된 진행 공정이 없습니다.</span>`;
-            } else {
-                tomorrowActiveTrades.forEach(tradeName => {
-                    tomorrowContainer.innerHTML += `<span class="bg-indigo-600/60 border border-indigo-400/40 px-2 py-0.5 rounded-lg text-xs font-semibold">${tradeName}</span>`;
-                });
-            }
-        }
-
-        function renderOverallProgress() {
-            const proj = getCurrentProject();
-            if (!proj || proj.trades.length === 0) return;
-            
-            let sumProgress = 0;
-            proj.trades.forEach(t => {
-                const metrics = calculateTradeMetrics(t.phases, TODAY);
-                sumProgress += metrics.progress;
-            });
-
-            const avgProgress = Math.round(sumProgress / proj.trades.length);
-            document.getElementById('overallProgressText').innerText = avgProgress + '%';
-            document.getElementById('overallProgressBar').style.width = avgProgress + '%';
-        }
-
-        function renderStatusCounts() {
-            const proj = getCurrentProject();
-            if (!proj) return;
-
-            let completedCount = 0;
-            let inProgressCount = 0;
-            let upcomingCount = 0;
-
-            proj.trades.forEach(trade => {
-                const metrics = calculateTradeMetrics(trade.phases, TODAY);
-                if (metrics.status === '완료공정') completedCount++;
-                else if (metrics.status === '진행중') inProgressCount++;
-                else if (metrics.status === '진행예정') upcomingCount++;
-            });
-
-            document.getElementById('statCompletedCount').innerText = completedCount + '건';
-            document.getElementById('statInProgressCount').innerText = inProgressCount + '건';
-            document.getElementById('statUpcomingCount').innerText = upcomingCount + '건';
-        }
-
-        function renderTimeline() {
-            const proj = getCurrentProject();
-            if (!proj) return;
-
-            const namesContainer = document.getElementById('timelineNamesList');
-            const rowsContainer = document.getElementById('timelineRows');
-            namesContainer.innerHTML = '';
-            rowsContainer.innerHTML = '';
-
-            const pStart = new Date(proj.startDate);
-            const pEnd = new Date(proj.endDate);
-            const totalProjDuration = Math.max(1, Math.round((pEnd - pStart) / (1000 * 60 * 60 * 24)));
-            
-            const currentDiff = Math.round((selectedDate - pStart) / (1000 * 60 * 60 * 24));
-            let indicatorPercent = (currentDiff / totalProjDuration) * 100;
-            indicatorPercent = Math.max(0, Math.min(100, indicatorPercent));
-
-            proj.trades.forEach((trade) => {
-                const metrics = calculateTradeMetrics(trade.phases, TODAY);
-                let barColor = 'bg-slate-300';
-                
-                let isActiveOnSelected = false;
-                if (trade.phases) {
-                    trade.phases.forEach(phase => {
-                        const s = new Date(phase.start);
-                        const e = new Date(phase.end);
-                        if (selectedDate >= s && selectedDate <= e) isActiveOnSelected = true;
-                    });
-                }
-
-                if (metrics.status === '완료공정') barColor = 'bg-emerald-500';
-                else if (metrics.status === '진행중') barColor = isActiveOnSelected ? 'bg-blue-600 shadow-md ring-2 ring-blue-300' : 'bg-blue-400';
-
-                const nameDiv = document.createElement('div');
-                nameDiv.className = `px-3 h-7 flex items-center text-[11px] truncate transition-all ${isActiveOnSelected ? 'text-blue-600 font-extrabold bg-blue-50/60' : 'text-slate-700 font-semibold'}`;
-                nameDiv.innerText = trade.name;
-                namesContainer.appendChild(nameDiv);
-
-                let phasesHtml = '';
-                if (trade.phases) {
-                    trade.phases.forEach((phase, pIdx) => {
-                        const phaseStart = new Date(phase.start);
-                        const phaseEnd = new Date(phase.end);
-                        const startDiff = Math.round((phaseStart - pStart) / (1000 * 60 * 60 * 24));
-                        const duration = Math.round((phaseEnd - phaseStart) / (1000 * 60 * 60 * 24)) + 1;
-
-                        let leftPercent = Math.max(0, Math.min(100, (startDiff / totalProjDuration) * 100));
-                        let widthPercent = Math.max(2, Math.min(100 - leftPercent, (duration / totalProjDuration) * 100));
-
-                        phasesHtml += `
-                            <div class="absolute h-4 rounded-md ${barColor} border border-white/40 flex items-center justify-center px-1 cursor-pointer hover:brightness-110 transition shadow-xs" 
-                                 style="left: ${leftPercent}%; width: ${widthPercent}%;" 
-                                 onclick="openEditTradeModal(${trade.id})">
-                                 <span class="text-[8px] text-white font-extrabold truncate">${pIdx > 0 ? (pIdx+1)+'차' : ''}</span>
-                            </div>
-                        `;
-                    });
-                }
-
-                rowsContainer.innerHTML += `
-                    <div class="h-7 flex items-center relative">
-                        <div class="absolute top-0 bottom-0 w-0.5 bg-blue-600 z-20 pointer-events-none shadow-sm" style="left: ${indicatorPercent}%;"></div>
-                        <div class="w-full relative h-5 bg-slate-100 rounded-lg border border-slate-200/60">${phasesHtml}</div>
-                    </div>
-                `;
-            });
-        }
-
-        function renderTradeList() {
-            const proj = getCurrentProject();
-            if (!proj) return;
-
-            const container = document.getElementById('tradeListContainer');
-            container.innerHTML = '';
-
-            proj.trades.forEach(trade => {
-                const metrics = calculateTradeMetrics(trade.phases, TODAY);
-                let badgeClass = 'bg-slate-100 text-slate-600';
-                let circleColor = 'text-slate-300';
-                let strokeDash = 125.6 - (125.6 * metrics.progress) / 100;
-
-                if (metrics.status === '완료공정') { badgeClass = 'bg-emerald-50 text-emerald-600'; circleColor = 'text-emerald-500'; }
-                else if (metrics.status === '진행중') { badgeClass = 'bg-blue-50 text-blue-600'; circleColor = 'text-blue-600'; }
-                else if (metrics.status === '진행예정') { badgeClass = 'bg-amber-50 text-amber-700'; circleColor = 'text-amber-400'; }
-
-                let phasesText = trade.phases ? trade.phases.map((p, idx) => `<span class="block">${idx+1}차 기간: ${p.start} ~ ${p.end} (${getDaysCount(p.start, p.end)}일)</span>`).join('') : '';
-
-                container.innerHTML += `
-                    <div onclick="openEditTradeModal(${trade.id})" class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative hover:shadow-md transition cursor-pointer group">
-                        <div class="flex justify-between items-start mb-2">
-                            <div class="flex-1">
-                                <div class="flex items-center space-x-2">
-                                    <span class="text-[10px] ${badgeClass} px-2 py-0.5 rounded font-semibold">${metrics.status}</span>
-                                    <span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">총 ${trade.phases.length}개 회차</span>
-                                </div>
-                                <h3 class="font-bold text-slate-800 mt-1 text-sm group-hover:text-blue-600 transition">[${trade.name}]</h3>
-                                <div class="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl mt-2 font-mono space-y-1">${phasesText}</div>
-                            </div>
-                            <div class="flex items-center space-x-3 ml-3 shrink-0">
-                                <div class="relative w-12 h-12 flex items-center justify-center">
-                                    <svg class="w-full h-full transform -rotate-90">
-                                        <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" class="text-slate-100 fill-none"></circle>
-                                        <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" class="${circleColor} fill-none transition-all duration-500" stroke-dasharray="125.6" stroke-dashoffset="${strokeDash}"></circle>
-                                    </svg>
-                                    <span class="absolute text-[11px] font-extrabold text-slate-700">${metrics.progress}%</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        function openNewProjectModal() {
-            isCreatingNewProject = true;
-            document.getElementById('projectModalTitle').innerText = '새 현장 등록';
-            document.getElementById('inputProjectName').value = '';
-            document.getElementById('inputClientName').value = '';
-            document.getElementById('inputStartDate').value = formatDate(TODAY);
-            document.getElementById('inputEndDate').value = formatDate(new Date(TODAY.getTime() + 60*24*60*60*1000));
-            document.getElementById('projectModal').classList.remove('hidden');
-        }
-
-        function openProjectEditModal() {
-            isCreatingNewProject = false;
-            const proj = getCurrentProject();
-            if (!proj) return;
-            document.getElementById('projectModalTitle').innerText = '현장 정보 변경';
-            document.getElementById('inputProjectName').value = proj.name;
-            document.getElementById('inputClientName').value = proj.company;
-            document.getElementById('inputStartDate').value = proj.startDate;
-            document.getElementById('inputEndDate').value = proj.endDate;
-            document.getElementById('projectModal').classList.remove('hidden');
-        }
-
-        function closeProjectEditModal() { document.getElementById('projectModal').classList.add('hidden'); }
-
-        async function saveProjectInfo() {
-            const name = document.getElementById('inputProjectName').value;
-            const clientName = document.getElementById('inputClientName').value;
-            const startDate = document.getElementById('inputStartDate').value;
-            const endDate = document.getElementById('inputEndDate').value;
-            if (!name) return alert("현장명을 입력해주세요.");
-
-            if (isCreatingNewProject) {
-                const newId = 'PRJ-' + String(Date.now()).slice(-4);
-                projects.push({
-                    id: newId, name, company: clientName, manager: "현장소장", startDate, endDate, issue: "신규 현장",
-                    trades: [{ id: 1, name: "가설공사", phases: [{ start: startDate, end: endDate }] }]
-                });
-                closeProjectEditModal();
-                loadDataFromSheets(); // 백엔드 연동 시 POST 구현 가능
-                openProject(newId);
-            } else {
-                const proj = getCurrentProject();
-                if (proj) {
-                    proj.name = name;
-                    proj.company = clientName;
-                    proj.startDate = startDate;
-                    proj.endDate = endDate;
-                }
-                closeProjectEditModal();
-                initTimelineSlider();
-                renderDetailAll();
-            }
-        }async function saveProjectInfo() {
-            const name = document.getElementById('inputProjectName').value;
-            const clientName = document.getElementById('inputClientName').value;
-            const startDate = document.getElementById('inputStartDate').value;
-            const endDate = document.getElementById('inputEndDate').value;
-            if (!name) return alert("현장명을 입력해주세요.");
-
-            showLoading(true);
-            try {
-                let targetId = currentProjectId;
-                if (isCreatingNewProject) {
-                    targetId = 'PRJ-' + String(Date.now()).slice(-4);
-                }
-
-                const payload = {
-                    action: 'saveProject',
-                    project_id: targetId,
-                    name: name,
-                    client_name: clientName,
-                    manager: "현장소장",
-                    start_date: startDate,
-                    end_date: endDate,
-                    issue: isCreatingNewProject ? "신규 현장" : (getCurrentProject()?.issue || "")
-                };
-
-                await fetch(GAS_API_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', // Apps Script CORS 우회
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                closeProjectEditModal();
-                await loadDataFromSheets(); // 시트에서 최신 데이터 다시 로드
-                
-                if (isCreatingNewProject) {
-                    openProject(targetId);
-                }
-            } catch (err) {
-                console.error("저장 오류:", err);
-                alert("저장 중 오류가 발생했습니다.");
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        function openIssueEditModal() {
-            const proj = getCurrentProject();
-            if (!proj) return;
-            document.getElementById('inputIssueText').value = proj.issue || '';
-            document.getElementById('issueModal').classList.remove('hidden');
-        }
-        function closeIssueEditModal() { document.getElementById('issueModal').classList.add('hidden'); }
-        function saveIssueInfo() {
-            const proj = getCurrentProject();
-            if (!proj) return;
-            proj.issue = document.getElementById('inputIssueText').value;
-            document.getElementById('displayIssue').innerText = proj.issue;
-            closeIssueEditModal();
-        }
-
-        function openDateInfoModal() {
-            const dateStr = formatDate(selectedDate);
-            document.getElementById('modalInquiryDateTitle').innerText = dateStr + " 공사 조회";
-            const listContainer = document.getElementById('dateInquiryList');
-            listContainer.innerHTML = '';
-
-            const proj = getCurrentProject();
-            if (!proj) return;
-
-            let activeTrades = [];
-            proj.trades.forEach(trade => {
-                trade.phases.forEach((phase, pIdx) => {
-                    if (selectedDate >= new Date(phase.start) && selectedDate <= new Date(phase.end)) {
-                        activeTrades.push({ name: trade.name, phaseNum: pIdx + 1, start: phase.start, end: phase.end, ...calculateTradeMetrics(trade.phases, selectedDate) });
-                    }
-                });
-            });
-
-            if (activeTrades.length === 0) {
-                listContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs"><i class="fa-regular fa-calendar-xmark text-2xl mb-2 block"></i>해당 날짜에 진행 중인 공정이 없습니다.</div>`;
-            } else {
-                activeTrades.forEach((item, idx) => {
-                    listContainer.innerHTML += `
-                        <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between">
-                            <div>
-                                <div class="flex items-center space-x-1.5 mb-0.5">
-                                    <span class="text-[10px] bg-blue-600 text-white px-1.5 rounded font-bold">#${idx+1}</span>
-                                    <span class="text-xs font-extrabold text-slate-800">${item.name} (${item.phaseNum}차)</span>
-                                </div>
-                                <span class="text-[11px] text-slate-500 font-mono">${item.start} ~ ${item.end}</span>
-                            </div>
-                            <div class="text-right"><span class="text-xs font-black text-blue-600 font-mono">${item.progress}%</span></div>
-                        </div>`;
-                });
-            }
-            document.getElementById('dateInfoModal').classList.remove('hidden');
-        }
-        function closeDateInfoModal() { document.getElementById('dateInfoModal').classList.add('hidden'); }
-
-        function openStatusDetailModal(statusType) {
-            const proj = getCurrentProject();
-            if (!proj) return;
-            document.getElementById('statusModalTitle').innerText = `${statusType} 내역`;
-            const listContainer = document.getElementById('statusModalList');
-            listContainer.innerHTML = '';
-
-            let filtered = proj.trades.filter(t => calculateTradeMetrics(t.phases, TODAY).status === statusType);
-            if (filtered.length === 0) {
-                listContainer.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs">내역이 없습니다.</div>`;
-            } else {
-                filtered.forEach((item, idx) => {
-                    let phasesHtml = item.phases.map((p, pIdx) => `<span class="block font-mono text-[11px] text-slate-500">${pIdx+1}차: ${p.start} ~ ${p.end}</span>`).join('');
-                    listContainer.innerHTML += `<div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between"><div class="space-y-1"><span class="text-xs font-extrabold text-slate-800">${item.name}</span>${phasesHtml}</div><span class="text-xs font-black text-blue-600 font-mono">${calculateTradeMetrics(item.phases, TODAY).progress}%</span></div>`;
-                });
-            }
-            document.getElementById('statusDetailModal').classList.remove('hidden');
-        }
-        function closeStatusDetailModal() { document.getElementById('statusDetailModal').classList.add('hidden'); }
-
-        function populateTradeSelect(selectedVal = '') {
-            const selectEl = document.getElementById('editTradeSelect');
-            const inputEl = document.getElementById('editTradeName');
-            selectEl.innerHTML = '';
-
-            PREDEFINED_TRADES.forEach(trade => {
-                const opt = document.createElement('option');
-                opt.value = trade; opt.innerText = trade;
-                selectEl.appendChild(opt);
-            });
-            const customOpt = document.createElement('option');
-            customOpt.value = 'CUSTOM_INPUT'; customOpt.innerText = '직접입력';
-            selectEl.appendChild(customOpt);
-
-            if (PREDEFINED_TRADES.includes(selectedVal)) {
-                selectEl.value = selectedVal; inputEl.value = selectedVal; inputEl.classList.add('hidden');
-            } else {
-                selectEl.value = 'CUSTOM_INPUT'; inputEl.value = selectedVal; inputEl.classList.remove('hidden');
-            }
-        }
-
-        function onTradeSelectChange(val) {
-            const inputEl = document.getElementById('editTradeName');
-            if (val === 'CUSTOM_INPUT') { inputEl.value = ''; inputEl.classList.remove('hidden'); inputEl.focus(); }
-            else { inputEl.value = val; inputEl.classList.add('hidden'); }
-        }
-
-        function openAddTradeModal() {
-            document.getElementById('tradeModalTitle').innerText = '새 공종 항목 추가';
-            document.getElementById('editTradeIndex').value = '';
-            populateTradeSelect(PREDEFINED_TRADES[0]);
-            renderPhasesInputs([{ start: formatDate(TODAY), end: formatDate(TODAY) }]);
-            document.getElementById('tradeModal').classList.remove('hidden');
-        }
-
-        function openEditTradeModal(id) {
-            const proj = getCurrentProject();
-            const trade = proj.trades.find(t => t.id === id);
-            if (!trade) return;
-            document.getElementById('tradeModalTitle').innerText = `${trade.name} 회차 수정`;
-            document.getElementById('editTradeIndex').value = trade.id;
-            populateTradeSelect(trade.name);
-            renderPhasesInputs(trade.phases || []);
-            document.getElementById('tradeModal').classList.add('hidden'); // fix
-            document.getElementById('tradeModal').classList.remove('hidden');
-        }
-
-        function renderPhasesInputs(phasesList) {
-            const container = document.getElementById('phasesContainer');
-            container.innerHTML = '';
-            phasesList.forEach((phase, idx) => {
-                const row = document.createElement('div');
-                row.className = 'flex items-center space-x-2 bg-white p-2 rounded-xl border border-slate-200';
-                row.innerHTML = `<span class="text-[11px] font-bold text-blue-600 w-10">${idx+1}차</span><div class="grid grid-cols-2 gap-1 flex-1"><input type="date" value="${phase.start}" class="phase-start bg-slate-50 border rounded-lg px-2 py-1 text-[11px] font-mono"><input type="date" value="${phase.end}" class="phase-end bg-slate-50 border rounded-lg px-2 py-1 text-[11px] font-mono"></div><button type="button" onclick="this.closest('div').remove()" class="w-6 h-6 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center text-xs"><i class="fa-solid fa-trash-can text-[10px]"></i></button>`;
-                container.appendChild(row);
-            });
-        }
-
-        function addPhaseRow() {
-            const container = document.getElementById('phasesContainer');
-            const row = document.createElement('div');
-            row.className = 'flex items-center space-x-2 bg-white p-2 rounded-xl border border-slate-200';
-            row.innerHTML = `<span class="text-[11px] font-bold text-blue-600 w-10">회차</span><div class="grid grid-cols-2 gap-1 flex-1"><input type="date" value="${formatDate(TODAY)}" class="phase-start bg-slate-50 border rounded-lg px-2 py-1 text-[11px] font-mono"><input type="date" value="${formatDate(TODAY)}" class="phase-end bg-slate-50 border rounded-lg px-2 py-1 text-[11px] font-mono"></div><button type="button" onclick="this.closest('div').remove()" class="w-6 h-6 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center text-xs"><i class="fa-solid fa-trash-can text-[10px]"></i></button>`;
-            container.appendChild(row);
-        }
-
-        function closeTradeModal() { document.getElementById('tradeModal').classList.add('hidden'); }
-
-        function saveTradeInfo() {
-            const proj = getCurrentProject();
-            if (!proj) return;
-            const id = document.getElementById('editTradeIndex').value;
-            const name = document.getElementById('editTradeName').value;
-            let phases = [];
-            document.querySelectorAll('#phasesContainer > div').forEach(row => {
-                phases.push({ start: row.querySelector('.phase-start').value, end: row.querySelector('.phase-end').value });
-            });
-            if (!name) return alert("공종명을 입력해주세요.");
-
-            if (id) {
-                const trade = proj.trades.find(t => t.id == id);
-                if (trade) { trade.name = name; trade.phases = phases; }
-            } else {
-                const newId = proj.trades.length > 0 ? Math.max(...proj.trades.map(t => t.id)) + 1 : 1;
-                proj.trades.push({ id: newId, name, phases });
-            }
-            renderDetailAll();
-            closeTradeModal();
-        }
-    </script>
+      }
+    });
+  </script>
 </body>
 </html>
