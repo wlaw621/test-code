@@ -178,12 +178,82 @@
 
   <!-- 2. 메인 포털 화면 (불필요한 배너 제거 & 깔끔한 현장 그리드 직결) -->
   <main id="portalViewContainer" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+    <!-- 직관적인 현장 카운터 요약 바 (진행 현장 개수 즉시 식별) -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <!-- 1. 총 진행 현장 수 (메인 강조) -->
+      <button onclick="setPortalFilter('all')" id="btnFilterAll" class="portal-stat-card card-3d p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-700 text-white flex items-center justify-between shadow-md shadow-indigo-100 text-left transition ring-2 ring-indigo-500">
+        <div>
+          <span class="text-xs text-indigo-100 font-bold uppercase tracking-wider block">총 진행 현장</span>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="statTotalSites" class="text-2xl sm:text-3xl font-black tracking-tight">3</span>
+            <span class="text-xs text-indigo-200 font-semibold">개소 가동중</span>
+          </div>
+          <p class="text-[11px] text-indigo-200 font-medium mt-1">전체 통합 관제</p>
+        </div>
+        <div class="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center text-xl shrink-0 text-white">
+          <i class="fa-solid fa-city"></i>
+        </div>
+      </button>
+
+      <!-- 2. 마감 임박 현장 (20일 이내) -->
+      <button onclick="setPortalFilter('urgent')" id="btnFilterUrgent" class="portal-stat-card card-3d p-4 sm:p-5 rounded-2xl bg-white border border-rose-200/80 hover:border-rose-400 flex items-center justify-between text-left transition shadow-sm">
+        <div>
+          <span class="text-xs text-rose-600 font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span> 마감 임박 (20일↓)
+          </span>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="statUrgentSites" class="text-2xl sm:text-3xl font-black text-rose-600 tracking-tight">1</span>
+            <span class="text-xs text-slate-500 font-semibold">개 현장</span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-medium mt-1">집중 마감 관리</p>
+        </div>
+        <div class="w-11 h-11 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-lg text-rose-600 shrink-0">
+          <i class="fa-solid fa-fire-flame-curved"></i>
+        </div>
+      </button>
+
+      <!-- 3. 공사 중반부 (21~50일) -->
+      <button onclick="setPortalFilter('mid')" id="btnFilterMid" class="portal-stat-card card-3d p-4 sm:p-5 rounded-2xl bg-white border border-amber-200/80 hover:border-amber-400 flex items-center justify-between text-left transition shadow-sm">
+        <div>
+          <span class="text-xs text-amber-600 font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span> 공사 중반 (21~50일)
+          </span>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="statMidSites" class="text-2xl sm:text-3xl font-black text-amber-600 tracking-tight">1</span>
+            <span class="text-xs text-slate-500 font-semibold">개 현장</span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-medium mt-1">핵심 설비/목공 진행</p>
+        </div>
+        <div class="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-lg text-amber-600 shrink-0">
+          <i class="fa-solid fa-hammer"></i>
+        </div>
+      </button>
+
+      <!-- 4. 공사 여유 (51일 이상) -->
+      <button onclick="setPortalFilter('normal')" id="btnFilterNormal" class="portal-stat-card card-3d p-4 sm:p-5 rounded-2xl bg-white border border-emerald-200/80 hover:border-emerald-400 flex items-center justify-between text-left transition shadow-sm">
+        <div>
+          <span class="text-xs text-emerald-600 font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 일정 여유 (51일↑)
+          </span>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="statNormalSites" class="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight">1</span>
+            <span class="text-xs text-slate-500 font-semibold">개 현장</span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-medium mt-1">기초/철거 안정 궤도</p>
+        </div>
+        <div class="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-lg text-emerald-600 shrink-0">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+      </button>
+    </div>
+
     <!-- 포털 타이틀 바 -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
       <div>
         <h2 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
           <span>진행 현장 통합 현황</span>
-          <span id="portalSiteCountBadge" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold border border-slate-200">3개 현장</span>
+          <span id="portalSiteCountBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">총 3개 현장</span>
+          <span id="portalActiveFilterBadge" class="hidden text-xs px-2 py-0.5 rounded-full bg-slate-800 text-white font-bold">필터 적용중</span>
         </h2>
         <p class="text-xs text-slate-500 font-medium mt-0.5">준공 마감일이 임박한 순서대로 자동 정렬됩니다.</p>
       </div>
@@ -743,7 +813,7 @@
     let searchQuery = '';
     let selectedCalMonth = null;
     let currentPackageAnalytics = [];
-
+    let portalFilterState = 'all'; // 'all', 'urgent', 'mid', 'normal'
     /* -------------------------------------------------------------
        초기화 및 데이터 로드
     ------------------------------------------------------------- */
@@ -930,14 +1000,72 @@
       if (!container) return;
       container.innerHTML = '';
 
-      const countBadge = document.getElementById('portalSiteCountBadge');
-      if (countBadge) countBadge.innerText = `${sitesData.length}개 현장`;
-
       // 마감일(endDate) 빠른 순으로 오름차순 정렬
       const sortedSites = [...sitesData].sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
 
-      sortedSites.forEach(site => {
+      // 1. 전체 현장의 마감 기간 통계 계산 (총 개수 / 임박 / 중반 / 여유)
+      let urgentCount = 0;
+      let midCount = 0;
+      let normalCount = 0;
+
+      const sitesWithMetrics = sortedSites.map(site => {
         const metrics = calculateSiteMetrics(site);
+        if (metrics.remainingDays <= 20) urgentCount++;
+        else if (metrics.remainingDays <= 50) midCount++;
+        else normalCount++;
+        return { site, metrics };
+      });
+
+      // 2. 상단 카운터 숫자 갱신 (직관적인 HUD 뱃지)
+      const elTotal = document.getElementById('statTotalSites');
+      const elUrgent = document.getElementById('statUrgentSites');
+      const elMid = document.getElementById('statMidSites');
+      const elNormal = document.getElementById('statNormalSites');
+      const countBadge = document.getElementById('portalSiteCountBadge');
+
+      if (elTotal) elTotal.innerText = sitesData.length;
+      if (elUrgent) elUrgent.innerText = urgentCount;
+      if (elMid) elMid.innerText = midCount;
+      if (elNormal) elNormal.innerText = normalCount;
+      if (countBadge) countBadge.innerText = `총 ${sitesData.length}개 현장`;
+
+      // 3. 필터링 적용
+      let displayList = sitesWithMetrics;
+      const activeFilterBadge = document.getElementById('portalActiveFilterBadge');
+      if (portalFilterState === 'urgent') {
+        displayList = sitesWithMetrics.filter(item => item.metrics.remainingDays <= 20);
+        if (activeFilterBadge) {
+          activeFilterBadge.innerText = `마감임박 필터 (${displayList.length}곳)`;
+          activeFilterBadge.classList.remove('hidden');
+        }
+      } else if (portalFilterState === 'mid') {
+        displayList = sitesWithMetrics.filter(item => item.metrics.remainingDays > 20 && item.metrics.remainingDays <= 50);
+        if (activeFilterBadge) {
+          activeFilterBadge.innerText = `중반부 필터 (${displayList.length}곳)`;
+          activeFilterBadge.classList.remove('hidden');
+        }
+      } else if (portalFilterState === 'normal') {
+        displayList = sitesWithMetrics.filter(item => item.metrics.remainingDays > 50);
+        if (activeFilterBadge) {
+          activeFilterBadge.innerText = `일정여유 필터 (${displayList.length}곳)`;
+          activeFilterBadge.classList.remove('hidden');
+        }
+      } else {
+        if (activeFilterBadge) activeFilterBadge.classList.add('hidden');
+      }
+
+      if (displayList.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full py-12 text-center bg-white rounded-3xl border border-slate-200/80">
+            <i class="fa-solid fa-filter text-slate-300 text-3xl mb-2"></i>
+            <p class="text-sm font-bold text-slate-600">선택한 조건에 해당하는 현장이 없습니다.</p>
+            <button onclick="setPortalFilter('all')" class="mt-3 px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-bold hover:bg-indigo-100 transition">전체 현장 보기</button>
+          </div>
+        `;
+        return;
+      }
+
+      displayList.forEach(({ site, metrics }) => {
         const ddayMeta = getDdayStatusMeta(metrics.remainingDays);
 
         const cardEl = document.createElement('div');
@@ -1028,6 +1156,27 @@
 
         container.appendChild(cardEl);
       });
+    }
+
+    // 포털 카운터 탭 필터링
+    function setPortalFilter(state) {
+      portalFilterState = state;
+      // 버튼 활성화 링 상태 갱신
+      document.querySelectorAll('.portal-stat-card').forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-indigo-500', 'ring-rose-500', 'ring-amber-500', 'ring-emerald-500');
+      });
+
+      if (state === 'all') {
+        document.getElementById('btnFilterAll')?.classList.add('ring-2', 'ring-indigo-500');
+      } else if (state === 'urgent') {
+        document.getElementById('btnFilterUrgent')?.classList.add('ring-2', 'ring-rose-500');
+      } else if (state === 'mid') {
+        document.getElementById('btnFilterMid')?.classList.add('ring-2', 'ring-amber-500');
+      } else if (state === 'normal') {
+        document.getElementById('btnFilterNormal')?.classList.add('ring-2', 'ring-emerald-500');
+      }
+
+      renderMainPortal();
     }
 
     /* -------------------------------------------------------------
